@@ -313,7 +313,9 @@
               class="w-full px-4 py-3 bg-gray-50 border border-gray-300 text-gray-900 rounded-lg focus-theme input-focus"
             >
               <option value="" disabled selected>Select User Type</option>
+              <option value="cashier">Cashier</option>
               <option value="staff">Staff</option>
+              <option value="procurement">Procurement</option>
               <option value="admin">Admin</option>
             </select>
           </div>

@@ -1,6 +1,6 @@
 <?php
 session_start();
-if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
+if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'cashier') {
     header("Location: ../index.php");
     exit();
 }
@@ -652,7 +652,7 @@ require_once '../db.php';
         <div class="header-content">
             <h1>Cabatangan Hardware</h1>
             <div class="staff-info">
-                <span>Staff: <?php echo htmlspecialchars($_SESSION['username']); ?></span>
+                <span>Cashier: <?php echo htmlspecialchars($_SESSION['username']); ?></span>
                 <button class="logout-btn" onclick="logout()">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </button>

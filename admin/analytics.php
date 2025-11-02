@@ -310,7 +310,7 @@ $recent_transactions = $recent_transactions_result->fetchAll();
 </head>
 <body>
 
-  <?php include '../includes/sidebar.php'; ?>
+  <?php include 'includes/sidebar.php'; ?>
 
   <div class="content">
     <h2 class="page-title">Sales Report & Analytics</h2>

@@ -37,9 +37,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Redirect based on user type
     if ($user['user_type'] === 'admin') {
         header("Location: admin/dashboard.php");
-    } else if ($user['user_type'] === 'staff') {
+    } else if ($user['user_type'] === 'cashier') {
+        header("Location: cashier/cashier.php");
+    }
+    else if ($user['user_type'] === 'staff') {
+        header("Location: staff/inventory.php");
+    }
+    else if ($user['user_type'] === 'cashier') {
         header("Location: staff/staff_dashboard.php");
-    } else {
+    }
+    else {
         $message = "Invalid user type.";
         include 'error_alert.php';
     }

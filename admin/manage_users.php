@@ -192,7 +192,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'admin') {
     </style>
 </head>
 <body>
-    <?php include '../includes/sidebar.php'; ?>
+    <?php include 'includes/sidebar.php'; ?>
 
     <div class="content">
         <h2>Manage Users</h2>
@@ -266,6 +266,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'admin') {
                         <select id="userType" name="userType" required>
                             <option value="staff">Staff</option>
                             <option value="admin">Admin</option>
+                            <option value="cashier">Cashier</option>
+                            <option value="procurement">Procurement</option>
                         </select>
                     </div>
 

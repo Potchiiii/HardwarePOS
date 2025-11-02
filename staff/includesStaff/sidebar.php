@@ -16,36 +16,7 @@
     Inventory
   </a>
 
-  <a href="../admin/manage_users.php"
-     class="flex items-center gap-3 py-3 px-4 rounded-md transition 
-     hover:bg-gray-800">
-    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M5.121 17.804A6 6 0 0112 15a6 6 0 016.879 2.804M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-    </svg>
-    Manage Users
-  </a>
-
-  <a href="../admin/sales.php"
-     class="flex items-center gap-3 py-3 px-4 rounded-md transition 
-     <?= $currentPage === 'sales.php' ? 'bg-teal-600' : 'hover:bg-gray-800' ?>">
-    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M3 3v18h18M16 9l-4 4-4-4"/>
-    </svg>
-    Sales
-  </a>
-
-  <a href="../admin/analytics.php"
-     class="flex items-center gap-3 py-3 px-4 rounded-md transition 
-     <?= $currentPage === 'analytics.php' ? 'bg-teal-600' : 'hover:bg-gray-800' ?>">
-    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M11 11V3h2v8h-2zm4 0V6h2v5h-2zM5 11V9h2v2H5z"/>
-    </svg>
-    Analytics
-  </a>
-
+  
   <a href="#" onclick="logout()"
      class="flex items-center gap-3 mt-auto py-3 px-4 rounded-md text-red-400 font-semibold hover:bg-red-700 hover:text-white transition">
     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

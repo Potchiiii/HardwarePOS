@@ -184,7 +184,7 @@ $sales = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </style>
 </head>
 <body>
-<?php include '../includes/sidebar.php'; ?>
+<?php include 'includes/sidebar.php'; ?>
 
 <div class="content">
     <h2 class="page-title">Sales Transactions</h2>
@@ -211,7 +211,6 @@ $sales = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <th>Items</th>
                 <th>Amount (₱)</th>
                 <th>Cashier</th>
-                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -222,7 +221,6 @@ $sales = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <td><?= htmlspecialchars($sale['items']) ?></td>
                 <td class="amount">₱<?= number_format($sale['total_amount'], 2) ?></td>
                 <td><?= htmlspecialchars($sale['cashier']) ?></td>
-                <td><a href="#" onclick="viewInvoice('INV-<?= str_pad($sale['sale_id'], 5, '0', STR_PAD_LEFT) ?>')">View</a></td>
             </tr>
         <?php endforeach; ?>
         </tbody>
@@ -279,7 +277,7 @@ $sales = $stmt->fetchAll(PDO::FETCH_ASSOC);
             return;
         }
         hideModal();
-        window.location.href = `download_sales.php?month=${month}&year=${year}`;
+        window.location.href = `download_logs.php?month=${month}&year=${year}`;
     }
 </script>
 </body>

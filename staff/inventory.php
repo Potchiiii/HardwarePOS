@@ -1,6 +1,6 @@
 <?php
 session_start();
-if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'admin') {
+if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
     header("Location: ../index.php");
     exit();
 }
@@ -407,7 +407,7 @@ require_once '../db.php';
     </style>
 </head>
 <body>
-    <?php include '../includes/sidebar.php'; ?>
+    <?php include 'includesStaff/sidebar.php'; ?>
 
     <div class="content">
         <h2>Inventory Management</h2>
@@ -630,7 +630,7 @@ require_once '../db.php';
 
         async function updateStock(id, change) {
             try {
-                const response = await fetch('update_stock.php', {
+                const response = await fetch('inventoryActions/update_stock.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id, change })
@@ -664,7 +664,7 @@ require_once '../db.php';
             const formData = new FormData(e.target);
             
             try {
-                const response = await fetch('save_item.php', {
+                const response = await fetch('inventoryActions/save_item.php', {
                     method: 'POST',
                     body: formData
                 });
@@ -684,7 +684,7 @@ require_once '../db.php';
             if (!confirm('Are you sure you want to delete this item?')) return;
             
             try {
-                const response = await fetch('delete_item.php', {
+                const response = await fetch('inventoryActions/delete_item.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id })
@@ -702,7 +702,7 @@ require_once '../db.php';
 
         async function editItem(id) {
             try {
-                const response = await fetch(`get_item.php?id=${id}`);
+                const response = await fetch(`inventoryActions/get_item.php?id=${id}`);
                 if (!response.ok) throw new Error('Failed to fetch item');
                 
                 const item = await response.json();

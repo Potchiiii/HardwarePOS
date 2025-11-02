@@ -53,7 +53,7 @@ $userType = $_SESSION['user_type'];
 </head>
 <body>
 
-  <?php include '../includes/sidebar.php'; ?>
+  <?php include 'includes/sidebar.php'; ?>
 
 <div class="content">
   <div class="card">

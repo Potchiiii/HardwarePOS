@@ -1,11 +1,11 @@
 <?php
 session_start();
-if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'admin') {
+if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
     http_response_code(401);
     exit(json_encode(['error' => 'Unauthorized']));
 }
 
-require_once '../db.php';
+require_once '../../db.php';
 
 $data = json_decode(file_get_contents('php://input'), true);
 $id = $data['id'] ?? null;
