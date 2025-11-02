@@ -4,7 +4,7 @@
 ?>
 
 <div class="h-screen w-[240px] fixed top-0 left-0 bg-gray-900 text-white flex flex-col px-4 py-6 shadow-lg">
-  <h2 class="text-2xl font-bold text-center mb-8 text-white">Cabatangan Hardware</h2>
+  <h2 class="text-2xl font-bold text-center mb-8 text-white">HardwarePOS</h2>
 
   
 

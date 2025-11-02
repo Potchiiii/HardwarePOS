@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Login - Cabatangan Hardware</title>
+  <title>Login - HardwarePOS</title>
 
   <link href="assets/third_party/poppins.css" rel="stylesheet"/>
   <link rel="stylesheet" href="assets/third_party/animate.min.css" />
@@ -268,7 +268,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6m10-9H8a2 2 0 00-2 2v14a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2z" />
         </svg>
       </div>
-      <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold text-white text-center drop-shadow-md">Cabatangan Hardware</h1>
+      <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold text-white text-center drop-shadow-md">HardwarePOS</h1>
       <h3 class="text-base sm:text-lg md:text-xl font-semibold text-white text-center opacity-90">Inventory System</h3>
     </div>
 
