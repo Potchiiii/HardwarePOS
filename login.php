@@ -46,6 +46,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     else if ($user['user_type'] === 'cashier') {
         header("Location: staff/staff_dashboard.php");
     }
+    else if ($user['user_type'] === 'procurement') {
+        header("Location: procurement/dashboard.php");
+    }
     else {
         $message = "Invalid user type.";
         include 'error_alert.php';
