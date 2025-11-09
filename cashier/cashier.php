@@ -650,7 +650,7 @@ require_once '../db.php';
 <body>
     <header class="header">
         <div class="header-content">
-            <h1>Cabatangan Hardware</h1>
+            <h1>HardwarePOS</h1>
             <div class="staff-info">
                 <span>Cashier: <?php echo htmlspecialchars($_SESSION['username']); ?></span>
                 <button class="logout-btn" onclick="logout()">

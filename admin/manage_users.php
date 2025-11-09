@@ -10,7 +10,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'admin') {
 <head>
     <meta charset="UTF-8">
     <title>Manage Users | Hardware Store</title>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="../assets/third_party/sweetalert2.min.js"></script>
     <style>
         * {
             margin: 0;
