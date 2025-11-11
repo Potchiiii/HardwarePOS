@@ -114,7 +114,7 @@ function getSalesDataForAI($pdo, $from_date, $to_date) {
 
 // Call Ollama API for analysis (Local)
 function getAIAnalysis($sales_data, $user_question = null) {
-    $data_summary = "You are an expert business analyst. Analyze this sales data:\n\n";
+    $data_summary = "You are an expert business analyst. Analyze this sales data. All currency amounts are in Philippine peso (PHP, ₱).\n\n";
     $data_summary .= "Period: " . $sales_data['summary']['first_sale'] . " to " . $sales_data['summary']['last_sale'] . "\n";
     $data_summary .= "Total Revenue: ₱" . number_format($sales_data['summary']['total_revenue'], 2) . "\n";
     $data_summary .= "Total Transactions: " . $sales_data['summary']['total_transactions'] . "\n";
@@ -443,6 +443,24 @@ $recent_transactions = $pdo->query($recent_transactions_query)->fetchAll();
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+
+    /* Skeleton loader styles */
+    .ai-skeleton { padding: 4px 0; }
+    .skeleton {
+      display: block;
+      width: 100%;
+      height: 12px;
+      background: linear-gradient(90deg, #eeeeee 25%, #f5f5f5 37%, #eeeeee 63%);
+      background-size: 400% 100%;
+      border-radius: 6px;
+      animation: skeleton-shimmer 1.2s ease-in-out infinite;
+    }
+    .skeleton-title { height: 18px; margin: 12px 0 8px; }
+    .skeleton-line { height: 12px; margin: 8px 0; }
+    @keyframes skeleton-shimmer {
+      0% { background-position: 100% 0; }
+      100% { background-position: -100% 0; }
+    }
     .quick-actions {
       display: flex;
       gap: 10px;
@@ -738,7 +756,21 @@ $recent_transactions = $pdo->query($recent_transactions_query)->fetchAll();
     askAIBtn.disabled = true;
     askAIBtn.innerHTML = '<span class="loading-spinner"></span> Analyzing...';
     aiResponseDiv.style.display = 'block';
-    aiResponseDiv.innerHTML = '<div style="text-align:center;padding:20px;"><span class="loading-spinner"></span> AI is analyzing your data...</div>';
+    aiResponseDiv.innerHTML = `
+      <div class="ai-skeleton">
+        <div class="skeleton skeleton-title" style="width:55%"></div>
+        <div class="skeleton skeleton-line"></div>
+        <div class="skeleton skeleton-line" style="width:95%"></div>
+        <div class="skeleton skeleton-line" style="width:90%"></div>
+        <div class="skeleton skeleton-title" style="width:45%;margin-top:12px;"></div>
+        <div class="skeleton skeleton-line"></div>
+        <div class="skeleton skeleton-line" style="width:96%"></div>
+        <div class="skeleton skeleton-line" style="width:92%"></div>
+        <div class="skeleton skeleton-title" style="width:50%;margin-top:12px;"></div>
+        <div class="skeleton skeleton-line"></div>
+        <div class="skeleton skeleton-line" style="width:98%"></div>
+      </div>
+    `;
 
     const formData = new FormData();
     formData.append('get_ai_analysis', '1');
@@ -825,12 +857,6 @@ $recent_transactions = $pdo->query($recent_transactions_query)->fetchAll();
     });
   });
 
-  // Auto-run analysis on page load
-  window.addEventListener('load', () => {
-    setTimeout(() => {
-      getAIAnalysis();
-    }, 1000);
-  });
   </script>
 </body>
 </html>
