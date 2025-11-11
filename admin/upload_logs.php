@@ -79,135 +79,99 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if (count($rows) === 0) {
                             $errors[] = "No rows found in the uploaded file.";
                         } else {
-                            // Determine whether file has header row and build column map
+                            // Expected format: date, item_name, brand, amount, cashier
                             $first = $rows[0];
                             $firstLower = array_map(function($v){ return strtolower(trim((string)$v)); }, $first);
                             $hasHeader = false;
-                            $expectedFields = [
-                                'date' => ['date'],
-                                'item' => ['item','item code','sku'],
-                                'amount' => ['amount','total','price'],
-                                'cashier' => ['cashier','cashier name','cashier_name'],
-                                'item_name' => ['item name','item_name','name','product'],
-                                'brand' => ['brand','manufacturer','maker']
-                            ];
-                            $colMap = []; // field => index
-
-                            // detect header if any known label appears
-                            foreach ($firstLower as $idx => $val) {
-                                foreach ($expectedFields as $field => $aliases) {
-                                    foreach ($aliases as $a) {
-                                        if ($val === $a) {
-                                            $colMap[$field] = $idx;
-                                            $hasHeader = true;
-                                        }
-                                    }
+                            
+                            // Check if first row is a header
+                            foreach ($firstLower as $val) {
+                                if (in_array($val, ['date', 'item_name', 'amount', 'cashier', 'brand'])) {
+                                    $hasHeader = true;
+                                    break;
                                 }
                             }
-
-                            // If header detected, remove it from rows start index
+                            
                             $start = $hasHeader ? 1 : 0;
 
-                            // If no header, assume order: date, item, amount, cashier, item_name, brand (if present)
-                            if (!$hasHeader) {
-                                // map sequentially up to available columns
-                                $sequential = ['date','item','amount','cashier','item_name','brand'];
-                                for ($i = 0; $i < min(count($first), count($sequential)); $i++) {
-                                    $colMap[$sequential[$i]] = $i;
-                                }
-                            } else {
-                                // for any expected field not found in header, attempt to assume sequential positions
-                                $sequential = ['date','item','amount','cashier','item_name','brand'];
-                                $nextIdx = 0;
-                                foreach ($sequential as $field) {
-                                    if (!isset($colMap[$field])) {
-                                        // find next unused index in header row
-                                        while (in_array($nextIdx, $colMap)) $nextIdx++;
-                                        if ($nextIdx < count($first)) {
-                                            $colMap[$field] = $nextIdx++;
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Prepare DB insert (adjust column names to your DB schema)
+                            // Process logbook: date, item_name, brand, amount, cashier
                             $pdo->beginTransaction();
                             try {
-                                // First create the inventory_logs entry
+                                $inserted = 0;
+                                $skipped = 0;
+                                
+                                // Prepare lookup statements
+                                $lookupStmt = $pdo->prepare("SELECT id FROM inventory WHERE name = ? AND brand = ? LIMIT 1");
+                                $userLookupStmt = $pdo->prepare("SELECT id FROM users WHERE username = ? LIMIT 1");
                                 $logStmt = $pdo->prepare("INSERT INTO inventory_logs (user_id, sale_date, total_amount) VALUES (?, ?, ?)");
-                                
-                                // Get the current user's ID from session
-                                $userId = $_SESSION['user_id'];
-                                $currentDate = date('Y-m-d H:i:s');
-                                
-                                // Calculate total amount from the rows
-                                $totalAmount = 0;
-                                for ($i = $start; $i < count($rows); $i++) {
-                                    $r = $rows[$i];
-                                    $get = function($field) use ($r, $colMap) {
-                                        if (!isset($colMap[$field])) return '';
-                                        $idx = $colMap[$field];
-                                        return isset($r[$idx]) ? trim((string)$r[$idx]) : '';
-                                    };
-                                    
-                                    $amountRaw = $get('amount');
-                                    if ($amountRaw !== '') {
-                                        $normalized = preg_replace('/[^\d\.\-]/', '', $amountRaw);
-                                        if ($normalized !== '' && is_numeric($normalized)) {
-                                            $totalAmount += (float)$normalized;
-                                        }
-                                    }
-                                }
-
-                                // Insert main log entry
-                                if (!$logStmt->execute([$userId, $currentDate, $totalAmount])) {
-                                    throw new Exception("Failed to create log entry");
-                                }
-                                
-                                // Get the ID of the newly created log
-                                $logId = $pdo->lastInsertId();
-                                
-                                // Prepare statement for log items
                                 $itemStmt = $pdo->prepare("INSERT INTO inventory_log_items (sale_id, inventory_id, quantity, price) VALUES (?, ?, ?, ?)");
                                 
-                                $inserted = 0;
                                 for ($i = $start; $i < count($rows); $i++) {
                                     $r = $rows[$i];
-                                    
-                                    $item = $get('item'); // This should be your inventory_id
-                                    $amountRaw = $get('amount');
-                                    
-                                    // Skip empty rows
-                                    if (empty($item) || empty($amountRaw)) {
+                                    if (count($r) < 4) {
+                                        $skipped++;
                                         continue;
                                     }
-
-                                    // Parse amount
-                                    $amount = 0.0;
-                                    if ($amountRaw !== '') {
-                                        $normalized = preg_replace('/[^\d\.\-]/', '', $amountRaw);
-                                        if ($normalized !== '' && is_numeric($normalized)) {
-                                            $amount = (float)$normalized;
+                                    
+                                    // Parse columns: date, item_name, brand, amount, cashier
+                                    $dateRaw = trim((string)($r[0] ?? ''));
+                                    $itemName = trim((string)($r[1] ?? ''));
+                                    $brand = trim((string)($r[2] ?? ''));
+                                    $amountRaw = trim((string)($r[3] ?? ''));
+                                    $cashier = trim((string)($r[4] ?? ''));
+                                    
+                                    if (empty($itemName) || empty($amountRaw)) {
+                                        $skipped++;
+                                        continue;
+                                    }
+                                    
+                                    // Parse date
+                                    $saleDate = date('Y-m-d H:i:s');
+                                    if (!empty($dateRaw)) {
+                                        try {
+                                            $dt = new DateTime($dateRaw);
+                                            $saleDate = $dt->format('Y-m-d H:i:s');
+                                        } catch (Exception $e) {}
+                                    }
+                                    
+                                    // Parse amount (remove currency symbols and commas)
+                                    $amount = (float)preg_replace('/[^\d\.\-]/', '', $amountRaw);
+                                    
+                                    // Lookup inventory by exact name and brand match
+                                    $lookupStmt->execute([$itemName, $brand]);
+                                    $inventoryRow = $lookupStmt->fetch(PDO::FETCH_ASSOC);
+                                    
+                                    if (!$inventoryRow) {
+                                        $skipped++;
+                                        continue;
+                                    }
+                                    
+                                    $inventoryId = $inventoryRow['id'];
+                                    
+                                    // Lookup cashier user ID by username from spreadsheet
+                                    $cashierUserId = $_SESSION['user_id']; // Default to current user
+                                    if (!empty($cashier)) {
+                                        $userLookupStmt->execute([$cashier]);
+                                        $userRow = $userLookupStmt->fetch(PDO::FETCH_ASSOC);
+                                        if ($userRow) {
+                                            $cashierUserId = $userRow['id'];
                                         }
                                     }
-
-                                    // Default quantity to 1 if not specified
-                                    $quantity = 1;
                                     
-                                    // Insert the log item
-                                    if (!$itemStmt->execute([
-                                        $logId,         // sale_id
-                                        $item,          // inventory_id
-                                        $quantity,      // quantity
-                                        $amount         // price
-                                    ])) {
-                                        throw new Exception("Insert failed on row " . ($i+1));
-                                    }
+                                    // Create inventory_logs entry for each row
+                                    $logStmt->execute([$cashierUserId, $saleDate, $amount]);
+                                    $logId = $pdo->lastInsertId();
+                                    
+                                    // Create inventory_log_items entry (quantity defaults to 1)
+                                    $itemStmt->execute([$logId, $inventoryId, 1, $amount]);
+                                    
                                     $inserted++;
                                 }
                                 
                                 $pdo->commit();
-                                $messages[] = "Upload complete. Inserted {$inserted} rows.";
+                                $msg = "Upload complete. Inserted {$inserted} rows";
+                                if ($skipped > 0) $msg .= ", skipped {$skipped} rows (item/brand not found in inventory)";
+                                $messages[] = $msg;
                             } catch (Exception $e) {
                                 $pdo->rollBack();
                                 $errors[] = "Database error: " . $e->getMessage();
@@ -252,7 +216,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="mb-4">
             <label for="sales_log" class="block text-gray-700 font-semibold mb-2">Select Sales Log File (CSV or XLSX):</label>
             <input type="file" name="sales_log" id="sales_log" accept=".csv,.xlsx,.xls" required class="border border-gray-300 p-2 rounded w-full">
-            <p class="text-sm text-gray-500 mt-2">Expected columns (order not required if header present): date, item, amount, cashier, item name, brand. Header row will be detected and used to map columns.</p>
+            <p class="text-sm text-gray-500 mt-2">
+                <strong>Expected columns:</strong> date | item_name | brand | amount | cashier<br>
+                <em>Header row is optional. Item name and brand must exactly match items in your inventory.</em>
+            </p>
         </div>
         <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">Upload</button>
     </form>
