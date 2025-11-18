@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 02, 2025 at 09:00 PM
+-- Generation Time: Nov 18, 2025 at 10:06 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -46,12 +46,12 @@ CREATE TABLE `inventory` (
 --
 
 INSERT INTO `inventory` (`id`, `name`, `brand`, `category`, `quantity`, `price`, `low_threshold`, `image_url`, `whole_sale`, `per_kilo`, `per_length`) VALUES
-(10, 'Drill 710 watts', 'Makita', 'Power Tools', 45, 5000.00, 23, 'assets/product_images/68857a4458807.webp', NULL, NULL, NULL),
-(11, 'Super glue', 'Mighty Bond', 'Adhesives', 999, 15.00, 20, 'assets/product_images/68857c12a2fc8.webp', NULL, NULL, NULL),
-(12, 'Super glue', 'Gorilla Glue', 'Adhesives', 84, 22.00, 10, 'assets/product_images/68857c74a3bbf.webp', NULL, NULL, NULL),
-(14, 'Yero', 'Superlume', 'Plumbing', 999, 250.00, 10, 'assets/product_images/688583ae8964d.jfif', NULL, NULL, NULL),
-(15, 'Cement', 'Holcim', 'Plumbing', 75, 25.00, 10, 'assets/product_images/6885894eb032a.png', NULL, NULL, NULL),
-(16, 'cement', 'republic', 'Plumbing', 43, 210.00, 10, 'assets/product_images/6885951886374.jfif', NULL, NULL, NULL);
+(10, 'Drill 710 watts', 'Makita', 'Power Tools', 43, 5000.00, 23, 'assets/product_images/68857a4458807.webp', NULL, NULL, NULL),
+(11, 'Super glue', 'Mighty Bond', 'Adhesives', 992, 15.00, 20, 'assets/product_images/68857c12a2fc8.webp', NULL, NULL, NULL),
+(12, 'Super glue', 'Gorilla Glue', 'Adhesives', 82, 22.00, 10, 'assets/product_images/68857c74a3bbf.webp', NULL, NULL, NULL),
+(14, 'Yero', 'Superlume', 'Plumbing', 995, 250.00, 10, 'assets/product_images/688583ae8964d.jfif', NULL, NULL, NULL),
+(15, 'Cement', 'Holcim', 'Plumbing', 71, 25.00, 10, 'assets/product_images/6885894eb032a.png', NULL, NULL, NULL),
+(16, 'cement', 'republic', 'Plumbing', 40, 210.00, 10, 'assets/product_images/6885951886374.jfif', NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -71,11 +71,8 @@ CREATE TABLE `inventory_logs` (
 --
 
 INSERT INTO `inventory_logs` (`id`, `user_id`, `sale_date`, `total_amount`) VALUES
-(39, 9, '2025-08-06 22:29:40', 5000.00),
-(40, 9, '2025-08-06 22:37:17', 5000.00),
-(41, 9, '2025-08-06 22:45:36', 5000.00),
-(42, 9, '2025-10-29 08:27:58', 1050.00),
-(43, 9, '2025-10-29 08:28:56', 5047.00);
+(56, 9, '2025-11-06 00:00:00', 5000.00),
+(57, 9, '2025-11-06 00:00:00', 5000.00);
 
 -- --------------------------------------------------------
 
@@ -96,13 +93,8 @@ CREATE TABLE `inventory_log_items` (
 --
 
 INSERT INTO `inventory_log_items` (`id`, `sale_id`, `inventory_id`, `quantity`, `price`) VALUES
-(87, 39, 10, 1, 5000.00),
-(88, 40, 10, 1, 5000.00),
-(89, 41, 10, 1, 5000.00),
-(90, 42, 16, 5, 210.00),
-(91, 43, 15, 1, 25.00),
-(92, 43, 10, 1, 5000.00),
-(93, 43, 12, 1, 22.00);
+(110, 56, 10, 1, 5000.00),
+(111, 57, 10, 1, 5000.00);
 
 -- --------------------------------------------------------
 
@@ -114,7 +106,7 @@ CREATE TABLE `users` (
   `id` int(11) NOT NULL,
   `username` varchar(50) NOT NULL,
   `password` varchar(255) NOT NULL,
-  `user_type` enum('admin','staff') NOT NULL,
+  `user_type` enum('admin','staff','cashier','procurement') NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -124,7 +116,9 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`id`, `username`, `password`, `user_type`, `created_at`) VALUES
 (2, 'Daud', '$2y$10$PaR1ALetObmq5snva0lfTOD/e3YGggYyG.7UIwXDfziYToAymwiIO', 'admin', '2025-07-26 22:18:38'),
-(9, 'Ren', '$2y$10$xXPDmsPD.Mqa7fQ9WoYnH.NjULJgrjvWLa6EerchExJPnz.QIbG1G', 'staff', '2025-08-06 13:28:00');
+(9, 'Ren', '$2y$10$xXPDmsPD.Mqa7fQ9WoYnH.NjULJgrjvWLa6EerchExJPnz.QIbG1G', 'cashier', '2025-08-06 13:28:00'),
+(10, 'Jim', '$2y$10$tb0Ris.hOqHn6YZg19dreeqKyWE7zVUT/rxUxbjc1k2Lyf91WGgSm', 'staff', '2025-11-02 20:36:32'),
+(11, 'Halon', '$2y$10$pdJt8vl5acqnC7GrLJ5Qh.VsNO/7Ko3tkOEzv8GiMrOS307VKcqzK', 'procurement', '2025-11-02 20:58:46');
 
 --
 -- Indexes for dumped tables
@@ -172,19 +166,19 @@ ALTER TABLE `inventory`
 -- AUTO_INCREMENT for table `inventory_logs`
 --
 ALTER TABLE `inventory_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=58;
 
 --
 -- AUTO_INCREMENT for table `inventory_log_items`
 --
 ALTER TABLE `inventory_log_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=94;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=112;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- Constraints for dumped tables
