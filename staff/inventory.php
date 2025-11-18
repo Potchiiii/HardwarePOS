@@ -411,6 +411,14 @@ require_once '../db.php';
 
     <div class="content">
         <h2>Inventory Management</h2>
+
+        <!-- Pending Batches Alert -->
+        <div id="pendingBatchesAlert" style="display: none; margin-bottom: 20px; padding: 15px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; color: #856404;">
+            <i class="fas fa-exclamation-circle"></i>
+            <strong>Pending Batches:</strong> 
+            <span id="pendingBatchCount">0</span> batch(es) awaiting verification.
+            <button class="add-btn" style="margin-left: 10px; padding: 5px 12px; font-size: 12px;" onclick="showPendingBatches()">View Batches</button>
+        </div>
         
         <div class="top-controls">
             <div class="search-box">
@@ -499,82 +507,199 @@ require_once '../db.php';
             </div>
             <form id="itemForm" enctype="multipart/form-data">
                 <div class="modal-body">
-                    <input type="hidden" id="itemId" name="itemId">
-
-                    <div class="form-group full-width">
-                        <label for="itemName">Item Name</label>
-                        <input type="text" id="itemName" name="itemName" required>
+                    <div class="form-group">
+                        <label for="itemName">Item Name *</label>
+                        <input type="text" id="itemName" name="name" required>
                     </div>
-
                     <div class="form-group">
                         <label for="brand">Brand</label>
-                        <input type="text" id="brand" name="brand" required>
+                        <input type="text" id="brand" name="brand">
                     </div>
-
                     <div class="form-group">
-                        <label for="category">Category</label>
-                        <select id="category" name="category" required>
-                            <option value="">Select category</option>
-                            <option value="Tools">Tools</option>
-                            <option value="Power Tools">Power Tools</option>
-                            <option value="Paint">Paint</option>
-                            <option value="Electrical">Electrical</option>
-                            <option value="Plumbing">Plumbing</option>
-                            <option value="Adhesives">Adhesives</option>
-                        </select>
+                        <label for="category">Category *</label>
+                        <input type="text" id="category" name="category" required>
                     </div>
-
                     <div class="form-group">
-                        <label for="quantity">Quantity</label>
-                        <input type="number" id="quantity" name="quantity" min="0" required>
+                        <label for="quantity">Quantity *</label>
+                        <input type="number" id="quantity" name="quantity" required min="0">
                     </div>
-
                     <div class="form-group">
-                        <label for="price">Price (₱)</label>
-                        <input type="number" id="price" name="price" step="0.01" min="0" required>
+                        <label for="price">Price (₱) *</label>
+                        <input type="number" id="price" name="price" required step="0.01" min="0">
                     </div>
-
                     <div class="form-group">
-                        <label for="wholesale_price">Wholesale Price (₱)</label>
-                        <input type="number" id="wholesale_price" name="wholesale_price" step="0.01" min="0">
+                        <label for="lowThreshold">Low Stock Threshold *</label>
+                        <input type="number" id="lowThreshold" name="low_threshold" required min="0" value="10">
                     </div>
-
                     <div class="form-group">
-                        <label for="price_per_kilo">Price per Kilo (₱)</label>
-                        <input type="number" id="price_per_kilo" name="price_per_kilo" step="0.01" min="0">
+                        <label for="wholeSale">Whole Sale (₱)</label>
+                        <input type="number" id="wholeSale" name="whole_sale" step="0.01" min="0">
                     </div>
-
                     <div class="form-group">
-                        <label for="price_per_meter">Price per Meter (₱)</label>
-                        <input type="number" id="price_per_meter" name="price_per_meter" step="0.01" min="0">
+                        <label for="perKilo">Per Kilo (₱)</label>
+                        <input type="number" id="perKilo" name="per_kilo" step="0.01" min="0">
                     </div>
-
+                    <div class="form-group">
+                        <label for="perLength">Per Length (₱)</label>
+                        <input type="number" id="perLength" name="per_length" step="0.01" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="batchId">Batch ID</label>
+                        <input type="text" id="batchId" name="batch_id" placeholder="Optional">
+                    </div>
                     <div class="form-group full-width">
-                        <label for="lowThreshold">Low Stock Alert Threshold</label>
-                        <input type="number" id="lowThreshold" name="lowThreshold" min="0" value="10" required>
+                        <label for="itemImage">Product Image</label>
+                        <input type="file" id="itemImage" name="image" accept="image/*" onchange="previewImage(this)">
+                        <img id="imagePreview" src="" alt="Preview">
                     </div>
 
-                    <div class="form-group full-width">
-                        <label for="productImage">Product Image</label>
-                        <input type="file" id="productImage" name="productImage" accept="image/*" onchange="previewImage(this)">
+                    <div class="actions">
+                        <button type="button" class="cancel-btn" onclick="hideModal()">Cancel</button>
+                        <button type="submit" class="save-btn">Save Item</button>
                     </div>
-                    
-                    <div class="image-preview full-width">
-                        <img id="imagePreview" src="#" alt="Preview">
-                    </div>
-                </div>
-
-                <div class="actions">
-                    <button type="button" class="cancel-btn" onclick="hideModal()">Cancel</button>
-                    <button type="submit" class="save-btn">Save</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <script>
+    <!-- Pending Batches Modal -->
+    <div class="modal-overlay" id="batchesModalOverlay">
+        <div class="modal" id="batchesModal" style="width: 700px;">
+            <div class="modal-header">
+                <h3>Pending Batches for Verification</h3>
+                <button class="close-btn" onclick="hideBatchesModal()">&times;</button>
+            </div>
+            <div id="batchesTableContainer" style="overflow-y: auto; max-height: 500px;">
+                <table style="width: 100%;">
+                    <thead>
+                        <tr>
+                            <th>Batch ID</th>
+                            <th>Item</th>
+                            <th>Brand</th>
+                            <th>Qty</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batchesTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>        <script>
         const modalOverlay = document.getElementById('modalOverlay');
         const modal = document.getElementById('itemModal');
+
+        // Load pending batches on page load
+        async function loadPendingBatches() {
+            try {
+                const response = await fetch('inventoryActions/getPendingBatches.php');
+                if (!response.ok) return;
+                
+                const batches = await response.json();
+                const alert = document.getElementById('pendingBatchesAlert');
+                
+                if (batches.length > 0) {
+                    document.getElementById('pendingBatchCount').textContent = batches.length;
+                    alert.style.display = 'block';
+                } else {
+                    alert.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading batches:', error);
+            }
+        }
+
+        async function showPendingBatches() {
+            try {
+                const response = await fetch('inventoryActions/getPendingBatches.php');
+                if (!response.ok) throw new Error('Failed to fetch batches');
+                
+                const batches = await response.json();
+                const tbody = document.getElementById('batchesTableBody');
+                tbody.innerHTML = '';
+                
+                batches.forEach(batch => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><strong>${batch.batch_id}</strong></td>
+                        <td>${batch.item_name}</td>
+                        <td>${batch.brand || '-'}</td>
+                        <td>${batch.quantity}</td>
+                        <td>
+                            <button class="action-btn edit" onclick="acceptBatch('${batch.batch_id}', ${batch.item_id}, '${batch.item_name}', '${batch.brand || ''}', ${batch.quantity})">
+                                Accept
+                            </button>
+                            <button class="action-btn delete" onclick="rejectBatch('${batch.batch_id}')">
+                                Reject
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                document.getElementById('batchesModalOverlay').classList.add('active');
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to load batches');
+            }
+        }
+
+        function hideBatchesModal() {
+            document.getElementById('batchesModalOverlay').classList.remove('active');
+        }
+
+        async function acceptBatch(batchId, itemId, itemName, brand, quantity) {
+            if (!confirm(`Accept batch ${batchId}? This will add ${quantity} units to inventory.`)) return;
+            
+            try {
+                const response = await fetch('inventoryActions/acceptBatch.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        batch_id: batchId,
+                        item_id: itemId,
+                        item_name: itemName,
+                        brand: brand,
+                        quantity: quantity
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to accept batch');
+                
+                const data = await response.json();
+                alert('Batch accepted and added to inventory');
+                hideBatchesModal();
+                loadPendingBatches();
+                window.location.reload();
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to accept batch');
+            }
+        }
+
+        async function rejectBatch(batchId) {
+            if (!confirm(`Reject batch ${batchId}?`)) return;
+            
+            try {
+                const response = await fetch('inventoryActions/rejectBatch.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ batch_id: batchId })
+                });
+
+                if (!response.ok) throw new Error('Failed to reject batch');
+                
+                alert('Batch rejected');
+                hideBatchesModal();
+                loadPendingBatches();
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to reject batch');
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', loadPendingBatches);
 
         function showModal(title = 'Add New Inventory Item') {
             document.getElementById('modalTitle').textContent = title;
@@ -614,13 +739,12 @@ require_once '../db.php';
             const amountStr = prompt(`Enter quantity to ${verb}:`, "1");
 
             if (amountStr === null || amountStr.trim() === "" || !/^\d+$/.test(amountStr)) {
-                // User cancelled, entered nothing, or entered a non-integer
                 return;
             }
 
             const amount = parseInt(amountStr, 10);
             if (amount <= 0) {
-                alert("Please enter a positive number.");
+                alert('Please enter a valid quantity');
                 return;
             }
 
@@ -644,16 +768,46 @@ require_once '../db.php';
                 quantitySpan.textContent = data.quantity;
 
                 // Update low stock status
+                const lowCell = row.querySelector('.low-stock-cell');
                 if (data.isLow) {
                     row.classList.add('low-stock');
-                    row.querySelector('td:nth-last-child(2)').innerHTML = '<span class="badge">Low Stock</span>';
+                    lowCell.innerHTML = '<span class="badge">Low Stock</span>';
                 } else {
                     row.classList.remove('low-stock');
-                    row.querySelector('td:nth-last-child(2)').innerHTML = '&mdash;';
+                    lowCell.innerHTML = '&mdash;';
                 }
             } catch (error) {
                 console.error('Error:', error);
                 alert('Failed to update stock');
+            }
+        }
+
+        // Flag item as damaged / expired / good
+        async function flagItem(id, flag) {
+            if (!['damaged','expired','good'].includes(flag)) return;
+            try {
+                const resp = await fetch('inventoryActions/flag_item.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, flag })
+                });
+                if (!resp.ok) throw new Error('Flag request failed');
+                const data = await resp.json();
+                if (!data || !data.condition) throw new Error('Invalid response');
+
+                const row = document.querySelector(`tr[data-id="${id}"]`);
+                const condCell = row.querySelector('.condition-cell');
+
+                if (data.condition === 'damaged') {
+                    condCell.innerHTML = '<span class="badge damaged">Damaged</span>';
+                } else if (data.condition === 'expired') {
+                    condCell.innerHTML = '<span class="badge expired">Expired</span>';
+                } else {
+                    condCell.innerHTML = '<span class="badge good">Good</span>';
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Failed to update item condition');
             }
         }
 
@@ -668,11 +822,9 @@ require_once '../db.php';
                     method: 'POST',
                     body: formData
                 });
-                
                 if (!response.ok) throw new Error('Save failed');
                 
                 hideModal();
-                // Add a small delay to let the modal close before reloading
                 setTimeout(() => window.location.reload(), 300);
             } catch (error) {
                 console.error('Error:', error);
@@ -689,7 +841,6 @@ require_once '../db.php';
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id })
                 });
-                
                 if (!response.ok) throw new Error('Delete failed');
                 
                 const row = document.querySelector(`tr[data-id="${id}"]`);
@@ -702,30 +853,27 @@ require_once '../db.php';
 
         async function editItem(id) {
             try {
-                const response = await fetch(`inventoryActions/get_item.php?id=${id}`);
-                if (!response.ok) throw new Error('Failed to fetch item');
-                
+                const response = await fetch('inventoryActions/get_item.php?id=' + id);
+                if (!response.ok) throw new Error('Fetch failed');
+
                 const item = await response.json();
-                document.getElementById('itemId').value = item.id;
                 document.getElementById('itemName').value = item.name;
                 document.getElementById('brand').value = item.brand;
                 document.getElementById('category').value = item.category;
                 document.getElementById('quantity').value = item.quantity;
                 document.getElementById('price').value = item.price;
-                document.getElementById('wholesale_price').value = item.whole_sale;
-                document.getElementById('price_per_kilo').value = item.per_kilo;
-                document.getElementById('price_per_meter').value = item.per_length;
                 document.getElementById('lowThreshold').value = item.low_threshold;
-                
-                if (item.image_url) {
-                    document.getElementById('imagePreview').src = `../${item.image_url}`;
-                    document.getElementById('imagePreview').style.display = 'block';
-                }
-                
+                document.getElementById('wholeSale').value = item.whole_sale || '';
+                document.getElementById('perKilo').value = item.per_kilo || '';
+                document.getElementById('perLength').value = item.per_length || '';
+                document.getElementById('batchId').value = item.batch_id || '';
+
+                // Store ID for update
+                document.getElementById('itemForm').dataset.itemId = id;
                 showModal('Edit Item');
             } catch (error) {
                 console.error('Error:', error);
-                alert('Failed to load item details');
+                alert('Failed to load item');
             }
         }
 
@@ -737,10 +885,10 @@ require_once '../db.php';
         tableRows.forEach(row => {
             const itemName = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
             const brand = row.querySelector('td:nth-child(4)').textContent.toLowerCase();
-            const category = row.querySelector('td:nth-child(7)').textContent.toLowerCase();
+            const category = row.querySelector('td:nth-child(10)').textContent.toLowerCase();
             
             const matches = itemName.includes(searchTerm) || 
-                          brand.includes(searchTerm) || 
+                          brand.includes(searchTerm) ||
                           category.includes(searchTerm);
 
             // Remove previous highlights
@@ -750,18 +898,6 @@ require_once '../db.php';
 
             if (matches) {
                 row.style.display = '';
-                if (searchTerm) {
-                    // Highlight matching text
-                    if (itemName.includes(searchTerm)) {
-                        row.querySelector('td:nth-child(3)').classList.add('highlight');
-                    }
-                    if (brand.includes(searchTerm)) {
-                        row.querySelector('td:nth-child(4)').classList.add('highlight');
-                    }
-                    if (category.includes(searchTerm)) {
-                        row.querySelector('td:nth-child(7)').classList.add('highlight');
-                    }
-                }
             } else {
                 row.style.display = 'none';
             }

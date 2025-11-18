@@ -1,168 +1,501 @@
 <?php
-  // Simple placeholders — replace with real DB queries as needed
-  $totalPRs = 128;
-  $pendingApproval = 7;
-  $poCreated = 54;
-  $itemsReceived = 312;
-
-  $currentPage = basename($_SERVER['PHP_SELF']);
+session_start();
+if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'procurement') {
+    header("Location: ../index.php");
+    exit();
+}
+require_once '../db.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Procurement Officer Dashboard - Cabatangan Hardware</title>
-  <link href="../assets/third_party/tailwind.min.css" rel="stylesheet">
-  <script src="../assets/third_party/feather.min.js"></script>
-  <style>
-    /* ensure main content is offset by the fixed sidebar width */
-    main { margin-left: 240px; padding: 24px; }
-  </style>
+    <meta charset="UTF-8">
+    <title>Procurement | Hardware Store</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+        }
+
+        .content {
+            margin-left: 220px;
+            padding: 30px;
+            flex: 1;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+            font-size: 28px;
+            color: #333;
+        }
+
+        .add-btn {
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 10px 18px;
+            background-color: #2ecc71;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+        }
+        .add-btn:hover {
+            background-color: #27ae60;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #3498db;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+
+        .badge.pending {
+            background-color: #f39c12;
+        }
+
+        .badge.checked {
+            background-color: #3498db;
+        }
+
+        .badge.received {
+            background-color: #2ecc71;
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0 3px;
+            font-size: 12px;
+            color: white;
+            transition: opacity 0.2s;
+        }
+
+        .action-btn:hover {
+            opacity: 0.8;
+        }
+
+        .action-btn.edit {
+            background-color: #3498db;
+        }
+
+        .action-btn.delete {
+            background-color: #e74c3c;
+        }
+
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal {
+            background: #ffffff;
+            padding: 25px 35px;
+            border-radius: 12px;
+            width: 500px;
+            max-width: 95%;
+            max-height: 90vh;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.25);
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 22px;
+            color: #343a40;
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            font-size: 28px;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .modal-body {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .modal label {
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: #495057;
+            font-weight: 500;
+        }
+
+        .modal input, .modal select, .modal textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 13px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        .modal input:focus, .modal select:focus, .modal textarea:focus {
+            border-color: #80bdff;
+            outline: 0;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+        }
+
+        .modal .actions {
+            margin-top: 25px;
+            text-align: right;
+            padding-top: 15px;
+            border-top: 1px solid #e9ecef;
+            grid-column: 1 / -1;
+        }
+
+        .modal .actions button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .modal .actions .save-btn {
+            background-color: #28a745;
+            color: white;
+            margin-left: 10px;
+        }
+
+        .modal .actions .save-btn:hover {
+            background-color: #218838;
+        }
+
+        .modal .actions .cancel-btn {
+            background-color: #f8f9fa;
+            color: #343a40;
+            border: 1px solid #ced4da;
+        }
+
+        .modal .actions .cancel-btn:hover {
+            background-color: #e2e6ea;
+        }
+
+        .filter-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .filter-btn {
+            padding: 8px 15px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-btn.active {
+            background: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+
+        .filter-btn:hover {
+            border-color: #3498db;
+        }
+    </style>
 </head>
-<body class="bg-gray-100 font-sans antialiased">
+<body>
+    <?php include 'includesProc/sidebar.php'; ?>
 
-  <?php include __DIR__ . '/includesProc/sidebar.php'; ?>
-
-  <main>
-    <header class="flex items-center justify-between mb-6">
-      <div>
-        <h1 class="text-2xl font-semibold text-gray-800">Procurement Officer Dashboard</h1>
-        <p class="text-sm text-gray-500">Overview of purchase requests, orders and receipts</p>
-      </div>
-      <div class="flex items-center gap-3">
-        <button class="px-4 py-2 bg-teal-600 text-white rounded shadow hover:bg-teal-700">New Purchase Request</button>
-        <button class="px-4 py-2 bg-white border rounded hover:bg-gray-50">Filters</button>
-      </div>
-    </header>
-
-    <!-- KPI Cards -->
-    <section class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-      <div class="bg-white p-4 rounded shadow flex items-center gap-4">
-        <div class="p-3 bg-teal-100 text-teal-700 rounded">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-        </div>
-        <div>
-          <div class="text-sm text-gray-500">Total PRs</div>
-          <div class="text-xl font-bold text-gray-800"><?= number_format($totalPRs) ?></div>
-        </div>
-      </div>
-
-      <div class="bg-white p-4 rounded shadow flex items-center gap-4">
-        <div class="p-3 bg-yellow-100 text-yellow-700 rounded">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3"/></svg>
-        </div>
-        <div>
-          <div class="text-sm text-gray-500">Pending Approval</div>
-          <div class="text-xl font-bold text-gray-800"><?= number_format($pendingApproval) ?></div>
-        </div>
-      </div>
-
-      <div class="bg-white p-4 rounded shadow flex items-center gap-4">
-        <div class="p-3 bg-indigo-100 text-indigo-700 rounded">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M3 12h18M7 17h10"/></svg>
-        </div>
-        <div>
-          <div class="text-sm text-gray-500">POs Created</div>
-          <div class="text-xl font-bold text-gray-800"><?= number_format($poCreated) ?></div>
-        </div>
-      </div>
-
-      <div class="bg-white p-4 rounded shadow flex items-center gap-4">
-        <div class="p-3 bg-green-100 text-green-700 rounded">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h2l3 8h8l3-8h2M12 3v7"/></svg>
-        </div>
-        <div>
-          <div class="text-sm text-gray-500">Items Received</div>
-          <div class="text-xl font-bold text-gray-800"><?= number_format($itemsReceived) ?></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- Recent Purchase Requests -->
-      <div class="bg-white rounded shadow p-4">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-gray-800">Recent Purchase Requests</h2>
-          <a href="pr_list.php" class="text-sm text-teal-600 hover:underline">View all</a>
+    <div class="content">
+        <h2>Procurement Dashboard</h2>
+        
+        <div style="margin-bottom: 20px;">
+            <button class="add-btn" id="openModalBtn">+ Create New Batch</button>
         </div>
 
-        <!-- Replace the static rows below with DB-generated rows -->
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-sm">
-            <thead class="text-gray-600 border-b">
-              <tr>
-                <th class="py-2 px-3">PR #</th>
-                <th class="py-2 px-3">Date</th>
-                <th class="py-2 px-3">Requested By</th>
-                <th class="py-2 px-3">Total Items</th>
-                <th class="py-2 px-3">Status</th>
-                <th class="py-2 px-3">Action</th>
-              </tr>
+        <div class="filter-controls">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="pending">Pending</button>
+            <button class="filter-btn" data-filter="checked">Checked</button>
+            <button class="filter-btn" data-filter="received">Received</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Batch ID</th>
+                    <th>Item Name</th>
+                    <th>Brand</th>
+                    <th>Quantity</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Checked By</th>
+                    <th>Actions</th>
+                </tr>
             </thead>
-            <tbody class="text-gray-700">
-              <tr class="hover:bg-gray-50">
-                <td class="py-2 px-3">PR-2025-0012</td>
-                <td class="py-2 px-3">2025-10-30</td>
-                <td class="py-2 px-3">R. Santos</td>
-                <td class="py-2 px-3">5</td>
-                <td class="py-2 px-3"><span class="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded">Pending</span></td>
-                <td class="py-2 px-3"><a href="view_pr.php?id=12" class="text-teal-600 hover:underline">Open</a></td>
-              </tr>
-              <tr class="hover:bg-gray-50">
-                <td class="py-2 px-3">PR-2025-0011</td>
-                <td class="py-2 px-3">2025-10-28</td>
-                <td class="py-2 px-3">M. Cruz</td>
-                <td class="py-2 px-3">2</td>
-                <td class="py-2 px-3"><span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">Approved</span></td>
-                <td class="py-2 px-3"><a href="view_pr.php?id=11" class="text-teal-600 hover:underline">Open</a></td>
-              </tr>
-              <!-- ... dynamic rows ... -->
+            <tbody id="batchTable">
+                <?php
+                $stmt = $pdo->query("SELECT b.*, u.username as created_username, u2.username as checked_username 
+                                    FROM batches b 
+                                    LEFT JOIN users u ON b.created_by = u.id
+                                    LEFT JOIN users u2 ON b.checked_by = u2.id
+                                    ORDER BY b.created_at DESC");
+                
+                while ($batch = $stmt->fetch()):
+                    $statusClass = strtolower($batch['status']);
+                ?>
+                <tr data-batch-id="<?= $batch['batch_id'] ?>" data-status="<?= $batch['status'] ?>">
+                    <td><strong><?= htmlspecialchars($batch['batch_id']) ?></strong></td>
+                    <td><?= htmlspecialchars($batch['item_name']) ?></td>
+                    <td><?= htmlspecialchars($batch['brand'] ?? '-') ?></td>
+                    <td><?= htmlspecialchars($batch['quantity']) ?></td>
+                    <td><span class="badge <?= $statusClass ?>"><?= ucfirst($batch['status']) ?></span></td>
+                    <td><?= date('M d, Y', strtotime($batch['created_at'])) ?></td>
+                    <td><?= $batch['checked_username'] ?? '-' ?></td>
+                    <td>
+                        <button class="action-btn edit" onclick="editBatch('<?= $batch['batch_id'] ?>')">Edit</button>
+                        <button class="action-btn delete" onclick="deleteBatch('<?= $batch['batch_id'] ?>')">Delete</button>
+                    </td>
+                </tr>
+                <?php endwhile; ?>
             </tbody>
-          </table>
+        </table>
+    </div>
+
+    <!-- Modal for creating/editing batch -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">Create New Batch</h3>
+                <button class="close-btn" onclick="hideModal()">&times;</button>
+            </div>
+            <form id="batchForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="batchId">Batch ID *</label>
+                        <input type="text" id="batchId" name="batch_id" placeholder="e.g., BATCH-2025-001" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="itemId">Item *</label>
+                        <select id="itemId" name="item_id" required onchange="onItemSelect()">
+                            <option value="">Select item...</option>
+                            <?php
+                            $items = $pdo->query("SELECT id, name, brand FROM inventory ORDER BY name");
+                            while ($item = $items->fetch()):
+                            ?>
+                            <option value="<?= $item['id'] ?>" data-name="<?= htmlspecialchars($item['name']) ?>" data-brand="<?= htmlspecialchars($item['brand'] ?? '') ?>">
+                                <?= htmlspecialchars($item['name']) ?> (<?= htmlspecialchars($item['brand'] ?? 'No Brand') ?>)
+                            </option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="itemName">Item Name</label>
+                        <input type="text" id="itemName" name="item_name" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="brand">Brand</label>
+                        <input type="text" id="brand" name="brand" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="quantity">Quantity *</label>
+                        <input type="number" id="quantity" name="quantity" placeholder="Enter quantity" required min="1">
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="notes">Notes</label>
+                        <textarea id="notes" name="notes" placeholder="Add any notes about this batch..." rows="3"></textarea>
+                    </div>
+
+                    <div class="actions">
+                        <button type="button" class="cancel-btn" onclick="hideModal()">Cancel</button>
+                        <button type="submit" class="save-btn">Create Batch</button>
+                    </div>
+                </div>
+            </form>
         </div>
-      </div>
+    </div>
 
-      <!-- Quick Actions & Recent Activity -->
-      <div class="space-y-6">
-        <div class="bg-white rounded shadow p-4">
-          <h3 class="text-md font-semibold text-gray-800 mb-3">Quick Actions</h3>
-          <div class="grid grid-cols-2 gap-3">
-            <a href="create_pr.php" class="block p-3 bg-teal-600 text-white rounded text-center">Create PR</a>
-            <a href="suppliers.php" class="block p-3 bg-white border rounded text-center">Manage Suppliers</a>
-            <a href="purchase_orders.php" class="block p-3 bg-white border rounded text-center">Purchase Orders</a>
-            <a href="goods_received.php" class="block p-3 bg-white border rounded text-center">Goods Received</a>
-          </div>
-        </div>
+    <script>
+        const modalOverlay = document.getElementById('modalOverlay');
 
-        <div class="bg-white rounded shadow p-4">
-          <h3 class="text-md font-semibold text-gray-800 mb-3">Recent Activity</h3>
-          <ul class="text-sm text-gray-700 space-y-2">
-            <li class="flex items-start gap-3">
-              <span class="text-xs text-gray-400">10m</span>
-              <div>PR-2025-0012 submitted by R. Santos</div>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="text-xs text-gray-400">3h</span>
-              <div>PO-2025-009 generated for PR-2025-0010</div>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="text-xs text-gray-400">1d</span>
-              <div>Items received for PO-2025-007</div>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </section>
+        function showModal() {
+            document.getElementById('modalTitle').textContent = 'Create New Batch';
+            document.getElementById('batchForm').reset();
+            document.getElementById('batchForm').dataset.batchId = '';
+            modalOverlay.classList.add('active');
+        }
 
-    <footer class="mt-8 text-sm text-gray-500">
-      © <?= date('Y') ?> Cabatangan Hardware — Procurement Officer
-    </footer>
-  </main>
+        function hideModal() {
+            modalOverlay.classList.remove('active');
+        }
 
-  <script>
-    // initialize icons if feather is loaded
-    if (window.feather) { feather.replace(); }
-  </script>
+        modalOverlay.addEventListener('click', function(e) {
+            if (e.target === this) hideModal();
+        });
+
+        function onItemSelect() {
+            const select = document.getElementById('itemId');
+            const option = select.options[select.selectedIndex];
+            document.getElementById('itemName').value = option.dataset.name || '';
+            document.getElementById('brand').value = option.dataset.brand || '';
+        }
+
+        document.getElementById('openModalBtn').addEventListener('click', showModal);
+
+        document.getElementById('batchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+
+            try {
+                const response = await fetch('processBatch.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) throw new Error('Failed to save batch');
+                
+                hideModal();
+                setTimeout(() => window.location.reload(), 300);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to create batch');
+            }
+        });
+
+        async function deleteBatch(batchId) {
+            if (!confirm('Are you sure you want to delete this batch?')) return;
+
+            try {
+                const response = await fetch('deleteBatch.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ batch_id: batchId })
+                });
+
+                if (!response.ok) throw new Error('Delete failed');
+                
+                document.querySelector(`tr[data-batch-id="${batchId}"]`).remove();
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to delete batch');
+            }
+        }
+
+        async function editBatch(batchId) {
+            try {
+                const response = await fetch(`getBatch.php?batch_id=${encodeURIComponent(batchId)}`);
+                if (!response.ok) throw new Error('Failed to fetch batch');
+
+                const batch = await response.json();
+                document.getElementById('modalTitle').textContent = 'Edit Batch';
+                document.getElementById('batchId').value = batch.batch_id;
+                document.getElementById('batchId').readOnly = true;
+                document.getElementById('itemId').value = batch.item_id;
+                document.getElementById('itemName').value = batch.item_name;
+                document.getElementById('brand').value = batch.brand;
+                document.getElementById('quantity').value = batch.quantity;
+                document.getElementById('notes').value = batch.notes || '';
+                document.getElementById('batchForm').dataset.batchId = batch.batch_id;
+                
+                showModal();
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to load batch');
+            }
+        }
+
+        // Filter functionality
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                
+                const filter = this.dataset.filter;
+                const rows = document.querySelectorAll('#batchTable tr');
+                
+                rows.forEach(row => {
+                    const status = row.dataset.status;
+                    if (filter === 'all' || status === filter) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>
