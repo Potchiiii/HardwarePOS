@@ -1,0 +1,244 @@
+LOW STOCK THRESHOLD MANAGEMENT
+==============================
+
+OVERVIEW
+--------
+The procurement module now allows you to set custom low stock thresholds for each inventory item. This helps identify which items need to be ordered before they run out of stock.
+
+FEATURES
+--------
+
+1. SET THRESHOLDS ON LOW STOCK PAGE
+   • Quick threshold adjustment while viewing low stock items
+   • Click the "Edit" button next to any threshold
+   • Update the threshold quantity
+   • Changes save immediately
+
+2. MANAGE ALL THRESHOLDS IN ONE PLACE
+   • New "Inventory Settings" page
+   • View all items with their current thresholds
+   • Search items by name or brand
+   • See real-time stock status
+   • Bulk edit thresholds
+   • Highlights changed values
+
+3. AUTOMATIC ALERTS
+   • Items automatically flagged as "Low Stock" when quantity < threshold
+   • Dashboard shows count of low stock items
+   • Low Stock Items page displays all items below threshold
+
+WORKFLOW
+--------
+
+SCENARIO 1: Quick Threshold Update from Low Stock Page
+1. Go to "Low Stock Items"
+2. Find an item that's marked as low stock
+3. Click the "Edit" button next to the threshold
+4. Enter the new threshold quantity
+5. Click "Update Threshold"
+6. Done! The threshold is updated
+
+SCENARIO 2: Set Thresholds for All Items
+1. Go to "Inventory Settings"
+2. View all items in your inventory
+3. Use search to find specific items
+4. Change threshold values in the input fields
+5. The "Save" button will enable when a value changes
+6. Click "Save" to update each item
+7. System shows updated status immediately
+
+SCENARIO 3: Initial Setup
+1. First time using the system?
+2. Go to "Inventory Settings"
+3. Set a threshold for each item you carry
+4. General guidelines:
+   - High-demand items: 10-20 units
+   - Medium-demand items: 5-10 units
+   - Low-demand items: 2-5 units
+   - Critical items: Always keep high threshold
+
+DATABASE CHANGES
+----------------
+
+The `inventory` table already has a `low_threshold` column:
+- Default value: 10 units
+- Data type: INT(11)
+- Can be set to any positive number
+
+SQL to view current thresholds:
+SELECT id, name, brand, quantity, low_threshold 
+FROM inventory 
+ORDER BY name;
+
+TECHNICAL DETAILS
+-----------------
+
+NEW FILE: update_threshold.php
+- Accepts POST requests with JSON data
+- Validates threshold is a positive integer
+- Updates inventory.low_threshold column
+- Returns success/error response
+
+NEW PAGE: inventory_settings.php
+- Displays all inventory items
+- Real-time threshold editing
+- Search functionality
+- Status indicators (Low Stock / Good Stock)
+
+UPDATED: low_stock.php
+- Added threshold edit button in table
+- Added threshold modal dialog
+- Integrated threshold update functionality
+
+UPDATED: sidebar.php
+- Added "Inventory Settings" menu link
+- New navigation option for threshold management
+
+HOW LOW STOCK CALCULATION WORKS
+--------------------------------
+
+Query that identifies low stock items:
+SELECT * FROM inventory 
+WHERE quantity < low_threshold 
+ORDER BY quantity ASC;
+
+Examples:
+- Item has 5 units, threshold is 10 → SHOWS as low stock
+- Item has 10 units, threshold is 10 → Does NOT show (quantity must be LESS THAN)
+- Item has 0 units, threshold is 10 → SHOWS as low stock (critical)
+
+BEST PRACTICES
+--------------
+
+1. SET REALISTIC THRESHOLDS
+   - Consider your ordering lead time
+   - If it takes 3 days to receive orders, set threshold high enough to last those 3 days
+   - Example: If you sell 5 units/day and lead time is 3 days, set threshold to 15+
+
+2. ADJUST SEASONALLY
+   - Increase thresholds before busy seasons
+   - Decrease thresholds for slower items
+   - Review quarterly
+
+3. DIFFERENT CATEGORIES
+   - Power Tools: Higher thresholds (expensive, fewer sold)
+   - Adhesives: Higher thresholds (fast-moving, cheap)
+   - Specialty Items: Lower thresholds (rarely ordered)
+
+4. MONITOR THE ALERTS
+   - Check "Low Stock Items" daily
+   - Act on alerts promptly
+   - Update thresholds if you get too many false alerts
+
+TROUBLESHOOTING
+---------------
+
+Q: Why doesn't an item show as low stock?
+A: Make sure quantity is LESS THAN threshold, not equal to it.
+   Example: quantity=10, threshold=10 will NOT show as low stock
+   Change to quantity=9 to see it flagged.
+
+Q: How do I know what threshold to set?
+A: Consider:
+   - How many units do you sell per day?
+   - How long does ordering take?
+   - Minimum threshold = (units/day × days to receive) + buffer
+
+Q: Can I set threshold to 0?
+A: No, threshold must be at least 1.
+
+Q: Can I see threshold history?
+A: Currently no, but the system logs what threshold is set.
+   To add history tracking, contact developer.
+
+API REFERENCE
+-------------
+
+Update Threshold
+URL: /procurement/update_threshold.php
+METHOD: POST
+Content-Type: application/json
+
+REQUEST:
+{
+    "item_id": 10,
+    "low_threshold": 25
+}
+
+RESPONSE (Success):
+{
+    "success": true
+}
+
+RESPONSE (Error):
+{
+    "error": "Error message"
+}
+
+VALIDATION
+- item_id: Required, must exist in inventory
+- low_threshold: Required, must be integer >= 1
+
+EXAMPLES IN FRONT-END
+---------------------
+
+JavaScript example of calling the API:
+```javascript
+const response = await fetch('update_threshold.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+        item_id: 10, 
+        low_threshold: 25 
+    })
+});
+
+const data = await response.json();
+if (response.ok) {
+    console.log('Threshold updated');
+} else {
+    console.error('Error:', data.error);
+}
+```
+
+INTEGRATION WITH OTHER FEATURES
+--------------------------------
+
+1. DASHBOARD
+   - Shows count of low stock items
+   - Uses threshold to calculate statistics
+
+2. LOW STOCK ITEMS PAGE
+   - Displays items with quantity < threshold
+   - Allows quick threshold adjustment
+   - Creates orders for low stock items
+
+3. PURCHASE ORDERS
+   - Can be triggered from low stock alerts
+   - Helps maintain thresholds
+
+4. NOTIFICATIONS
+   - Alert staff when new stock arrives
+   - Can help refill inventory above threshold
+
+MIGRATION FROM OLD SYSTEM
+--------------------------
+
+If you had old thresholds:
+1. Default threshold is 10 for all items
+2. Go to Inventory Settings
+3. Adjust each item's threshold manually
+4. Or run SQL:
+   UPDATE inventory SET low_threshold = 15 WHERE category = 'Power Tools';
+
+FUTURE ENHANCEMENTS
+-------------------
+
+Potential improvements:
+- Automatic threshold suggestions based on sales history
+- Threshold history tracking
+- Email alerts when threshold crossed
+- Recommended threshold calculations
+- Seasonal threshold adjustments
+- Multi-location thresholds
+

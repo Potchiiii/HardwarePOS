@@ -18,6 +18,15 @@
     Manage Users
   </a>
 
+  <a href="../admin/set_product_prices.php"
+     class="flex items-center gap-3 py-3 px-4 rounded-md transition 
+     <?= $currentPage === 'set_product_prices.php' ? 'bg-teal-600' : 'hover:bg-gray-800' ?>">
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2" />
+    </svg>
+    Set Product Prices
+  </a>
+
   <a href="../admin/sales.php"
      class="flex items-center gap-3 py-3 px-4 rounded-md transition 
      <?= $currentPage === 'sales.php' ? 'bg-teal-600' : 'hover:bg-gray-800' ?>">

@@ -1,0 +1,29 @@
+<?php
+session_start();
+header('Content-Type: application/json');
+
+if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'procurement') {
+    http_response_code(403);
+    echo json_encode(['error' => 'Unauthorized']);
+    exit();
+}
+
+require_once '../db.php';
+
+try {
+    $data = json_decode(file_get_contents('php://input'), true);
+    
+    $stmt = $pdo->prepare("DELETE FROM notifications WHERE id = ?");
+    $result = $stmt->execute([$data['notification_id']]);
+    
+    if ($result) {
+        echo json_encode(['success' => true]);
+    } else {
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to delete notification']);
+    }
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode(['error' => $e->getMessage()]);
+}
+?>
