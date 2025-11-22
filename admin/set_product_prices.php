@@ -17,7 +17,7 @@ $products = $pdo->query("SELECT id, name, brand, IFNULL(price, '') as price FROM
     <style>body{font-family:'Segoe UI',sans-serif;background:#f4f4f4;display:flex} .content{margin-left:260px;padding:30px;flex:1} table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden} thead th{background:#34495e;color:#fff;padding:12px;text-align:left} tbody td{padding:12px;border-bottom:1px solid #eee} input.price{width:120px;padding:6px;border:1px solid #ddd;border-radius:4px}</style>
 </head>
 <body>
-    <?php include '../procurement/includesProc/sidebar.php'; ?>
+    <?php include 'includes/sidebar.php'; ?>
     <div class="content">
         <h2>Set Product Prices</h2>
         <table>

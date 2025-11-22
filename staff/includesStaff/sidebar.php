@@ -6,7 +6,7 @@
 <div class="h-screen w-[240px] fixed top-0 left-0 bg-gray-900 text-white flex flex-col px-4 py-6 shadow-lg">
   <h2 class="text-2xl font-bold text-center mb-8 text-white">HardwarePOS</h2>
 
-  <a href="../admin/inventory.php"
+  <a href="../staff/inventory.php"
      class="flex items-center gap-3 py-3 px-4 rounded-md transition 
      <?= $currentPage === 'inventory.php' ? 'bg-teal-600' : 'hover:bg-gray-800' ?>">
     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -16,8 +16,17 @@
     Inventory
   </a>
 
+  <a href="../staff/notifications.php"
+     class="flex items-center gap-3 py-3 px-4 rounded-md transition 
+     <?= $currentPage === 'notifications.php' ? 'bg-teal-600' : 'hover:bg-gray-800' ?>">
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+    </svg>
+    Notifications
+  </a>
+
   
-  <a href="#" onclick="logout()"
+  <a href="staff/inventory.php" onclick="logout()"
      class="flex items-center gap-3 mt-auto py-3 px-4 rounded-md text-red-400 font-semibold hover:bg-red-700 hover:text-white transition">
     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

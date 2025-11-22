@@ -6,23 +6,36 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'procurement') {
 }
 require_once '../db.php';
 
-// Create notifications table if it doesn't exist
+// Create or alter notifications table to include processing/order references
 try {
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS `notifications` (
-            `id` INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            `order_number` VARCHAR(50) NOT NULL,
-            `item_name` VARCHAR(100) NOT NULL,
-            `quantity` INT(11) NOT NULL,
-            `message` TEXT NOT NULL,
-            `created_by` INT(11),
-            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            `sent_to_staff` TINYINT(1) DEFAULT 0,
-            FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
-        )
-    ");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `notifications` (
+        `id` INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        `order_id` INT(11) DEFAULT NULL,
+        `order_number` VARCHAR(50) DEFAULT NULL,
+        `item_id` INT(11) DEFAULT NULL,
+        `item_name` VARCHAR(100) NOT NULL,
+        `quantity` INT(11) NOT NULL,
+        `message` TEXT NOT NULL,
+        `created_by` INT(11) DEFAULT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        `sent_to_staff` TINYINT(1) DEFAULT 0,
+        `processed` TINYINT(1) DEFAULT 0,
+        `processed_by` INT(11) DEFAULT NULL,
+        `processed_at` DATETIME DEFAULT NULL,
+        `processed_notes` TEXT DEFAULT NULL,
+        `processed_added_qty` INT(11) DEFAULT NULL,
+        `processed_defective_qty` INT(11) DEFAULT NULL,
+        FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
+    )");
+    // ensure optional columns exist on older schemas (safe attempts)
+    $cols = [
+        'order_id','item_id','processed','processed_by','processed_at','processed_notes','processed_added_qty','processed_defective_qty'
+    ];
+    foreach ($cols as $c) {
+        try { $pdo->exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS `$c` VARCHAR(255) NULL"); } catch (Exception $e) { /* ignore */ }
+    }
 } catch (Exception $e) {
-    // Table might already exist
+    // ignore creation errors
 }
 
 // Get all notifications

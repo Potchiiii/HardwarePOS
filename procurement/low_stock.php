@@ -9,7 +9,7 @@ require_once '../db.php';
 // Get low stock items
 $lowStockItems = $pdo->query("
     SELECT * FROM inventory 
-    WHERE quantity < low_threshold 
+    WHERE quantity <= low_threshold 
     ORDER BY quantity ASC
 ")->fetchAll();
 ?>

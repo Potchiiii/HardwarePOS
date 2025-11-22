@@ -44,6 +44,20 @@ try {
     }
 } catch (Exception $e) { }
 
+// Backfill missing item_name / brand from inventory for older orders (one-time, idempotent)
+try {
+    $pdo->exec("
+        UPDATE purchase_orders po
+        JOIN inventory i ON po.item_id = i.id
+        SET po.item_name = COALESCE(NULLIF(po.item_name, ''), i.name),
+            po.brand = COALESCE(NULLIF(po.brand, ''), i.brand)
+        WHERE (po.item_name IS NULL OR po.item_name = '')
+           OR (po.brand IS NULL OR po.brand = '')
+    ");
+} catch (Exception $e) {
+    // ignore; just a best-effort backfill
+}
+
 // Get all purchase orders
 $orders = $pdo->query("
     SELECT po.*, u.username as created_by_name, s.name as supplier_name 
@@ -271,6 +285,26 @@ $orders = $pdo->query("
             color: #666;
             margin-top: 8px;
         }
+
+        .search-box {
+            flex: 1;
+            max-width: 400px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .search-box input:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+            outline: none;
+        }
     </style>
 </head>
 <body>
@@ -306,6 +340,12 @@ $orders = $pdo->query("
                 <button class="filter-btn" data-filter="ordered">Ordered</button>
                 <button class="filter-btn" data-filter="received">Received</button>
             </div>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search by order #, item name, or supplier...">
+            </div>
+            <button class="btn btn-primary" onclick="openNewProductModal()" style="background-color: #2ecc71;">
+                <i class="fas fa-plus"></i> Order New Product
+            </button>
         </div>
 
         <?php if (empty($orders)): ?>
@@ -342,12 +382,16 @@ $orders = $pdo->query("
                     <td><?= htmlspecialchars(substr($order['notes'] ?? '', 0, 30)) ?><?= strlen($order['notes'] ?? '') > 30 ? '...' : '' ?></td>
                     <td>
                         <div class="action-buttons">
-                            <button class="action-btn edit" onclick="editOrder(<?= $order['id'] ?>)">
-                                <i class="fas fa-edit"></i> Status
-                            </button>
-                            <button class="action-btn delete" onclick="deleteOrder(<?= $order['id'] ?>, '<?= htmlspecialchars($order['order_number']) ?>')">
-                                <i class="fas fa-trash"></i>
-                            </button>
+                            <?php if ($order['status'] !== 'received'): ?>
+                                <button class="action-btn edit" onclick="editOrder(<?= $order['id'] ?>, <?= $order['quantity'] ?>)">
+                                    <i class="fas fa-edit"></i> Status
+                                </button>
+                                <button class="action-btn delete" onclick="deleteOrder(<?= $order['id'] ?>, '<?= htmlspecialchars($order['order_number']) ?>')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            <?php else: ?>
+                                <span class="badge received">Received</span>
+                            <?php endif; ?>
                         </div>
                     </td>
                 </tr>
@@ -381,16 +425,152 @@ $orders = $pdo->query("
         </div>
     </div>
 
+    <!-- Modal for ordering new product -->
+    <div id="newProductModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 30px; border-radius: 8px; width: 480px; max-width: 90%; max-height: 90vh; display: flex; flex-direction: column;">
+            <h3 style="margin-bottom: 20px;">Order New Product</h3>
+            <form id="newProductForm" style="flex: 1; overflow-y: auto; padding-right: 10px;">
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">Product Name *</label>
+                    <input type="text" id="newProdName" name="product_name" placeholder="e.g., Hammer, Screw..." required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">Brand</label>
+                    <input type="text" id="newProdBrand" name="brand" placeholder="e.g., Stanley, Makita..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">Category</label>
+                    <input type="text" id="newProdCategory" name="category" placeholder="e.g., Tools, Hardware..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">Order Quantity *</label>
+                    <input type="number" id="newProdQty" name="quantity" min="1" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">Supplier</label>
+                    <select id="newProdSupplier" name="supplier_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">-- Select supplier --</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">Low Stock Threshold</label>
+                    <input type="number" id="newProdThreshold" name="low_threshold" min="1" value="10" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">Product Image</label>
+                    <input type="file" id="newProdImage" name="product_image" accept="image/*" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <small style="color: #666; display: block; margin-top: 5px;">JPG, PNG, WEBP (max 5MB)</small>
+                    <img id="imagePreviewNew" style="display: none; max-width: 150px; margin-top: 10px; border-radius: 4px; border: 1px solid #ddd;">
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" onclick="closeNewProductModal()" style="padding: 10px 20px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;">Cancel</button>
+                    <button type="submit" style="padding: 10px 20px; background: #2ecc71; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Create Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="../assets/third_party/sweetalert.min.js"></script>
     <script>
-        function editOrder(orderId) {
-            document.getElementById('orderId').value = orderId;
+        // Load suppliers when modals open
+        async function loadSuppliers(selectId) {
+            try {
+                const res = await fetch('get_suppliers.php');
+                if (!res.ok) return;
+                const list = await res.json();
+                const sel = document.getElementById(selectId);
+                sel.innerHTML = '<option value="">-- Select supplier --</option>';
+                list.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = s.name + (s.contact_person ? ' ('+s.contact_person+')' : '');
+                    sel.appendChild(opt);
+                });
+            } catch(err){ console.error('Failed to load suppliers', err); }
+        }
+
+        function editOrder(orderId, orderQty) {
+            const orderIdEl = document.getElementById('orderId');
+            orderIdEl.value = orderId;
             document.getElementById('statusModal').style.display = 'flex';
         }
 
         function closeStatusModal() {
             document.getElementById('statusModal').style.display = 'none';
         }
+
+        function openNewProductModal() {
+            document.getElementById('newProductForm').reset();
+            document.getElementById('newProdThreshold').value = '10';
+            loadSuppliers('newProdSupplier');
+            document.getElementById('newProductModal').style.display = 'flex';
+        }
+
+        function closeNewProductModal() {
+            document.getElementById('newProductModal').style.display = 'none';
+        }
+
+        // Image preview for new product
+        document.getElementById('newProdImage')?.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const preview = document.getElementById('imagePreviewNew');
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    preview.src = event.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                preview.style.display = 'none';
+            }
+        });
+
+        // Handle new product form submission
+        document.getElementById('newProductForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const imageFile = formData.get('product_image');
+
+            // Validate image if provided
+            if (imageFile && imageFile.size > 0) {
+                const maxSize = 5 * 1024 * 1024; // 5MB
+                if (imageFile.size > maxSize) {
+                    swal('Error', 'Image size must be less than 5MB', 'error');
+                    return;
+                }
+            }
+
+            // Create FormData to handle file upload
+            const uploadFormData = new FormData();
+            uploadFormData.append('product_name', formData.get('product_name'));
+            uploadFormData.append('brand', formData.get('brand'));
+            uploadFormData.append('category', formData.get('category'));
+            uploadFormData.append('quantity', formData.get('quantity'));
+            uploadFormData.append('supplier_id', formData.get('supplier_id'));
+            uploadFormData.append('low_threshold', formData.get('low_threshold'));
+            if (imageFile && imageFile.size > 0) {
+                uploadFormData.append('product_image', imageFile);
+            }
+
+            try {
+                const response = await fetch('create_order.php', {
+                    method: 'POST',
+                    body: uploadFormData  // Don't set Content-Type header; browser will set it with boundary
+                });
+
+                if (!response.ok) throw new Error('Failed to create order');
+
+                const result = await response.json();
+                closeNewProductModal();
+                swal('Success', 'Purchase order created for new product!', 'success').then(() => {
+                    window.location.reload();
+                });
+            } catch (error) {
+                console.error('Error:', error);
+                swal('Error', 'Failed to create order', 'error');
+            }
+        });
 
         document.getElementById('statusForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -437,23 +617,43 @@ $orders = $pdo->query("
             }
         }
 
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            filterTable();
+        });
+
         // Filter functionality
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
-
-                const filter = this.dataset.filter;
-                document.querySelectorAll('#ordersTable tr').forEach(row => {
-                    const status = row.dataset.status;
-                    if (filter === 'all' || status === filter) {
-                        row.style.display = '';
-                    } else {
-                        row.style.display = 'none';
-                    }
-                });
+                filterTable();
             });
         });
+
+        function filterTable() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const activeFilter = document.querySelector('.filter-btn.active')?.dataset.filter || 'all';
+
+            document.querySelectorAll('#ordersTable tr').forEach(row => {
+                const status = row.dataset.status;
+                const orderNumber = row.cells[0].textContent.toLowerCase();
+                const itemName = row.cells[1].textContent.toLowerCase();
+                const supplier = row.cells[2].textContent.toLowerCase();
+
+                // Check status filter
+                const statusMatch = activeFilter === 'all' || status === activeFilter;
+
+                // Check search filter
+                const searchMatch = searchTerm === '' || 
+                                    orderNumber.includes(searchTerm) || 
+                                    itemName.includes(searchTerm) || 
+                                    supplier.includes(searchTerm);
+
+                row.style.display = (statusMatch && searchMatch) ? '' : 'none';
+            });
+        }
 
         function logout() {
             swal({
