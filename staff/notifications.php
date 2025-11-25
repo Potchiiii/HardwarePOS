@@ -23,7 +23,9 @@ $notifications = $pdo->query(
     "SELECT n.*,
             u.username as created_by_name,
             COALESCE(po.brand, i.brand) AS item_brand,
-            COALESCE(NULLIF(n.item_name, ''), po.item_name, i.name) AS display_item_name
+            COALESCE(NULLIF(n.item_name, ''), po.item_name, i.name) AS display_item_name,
+            po.expiry_date,
+            COALESCE(n.processed_notes, n.message) AS display_message
      FROM notifications n
      LEFT JOIN users u ON n.created_by = u.id
      LEFT JOIN purchase_orders po ON po.order_number = n.order_number
@@ -96,7 +98,7 @@ $notifications = $pdo->query(
 <body>
     <?php include 'includesStaff/sidebar.php'; ?>
     <div class="content">
-        <h2>📦 Inventory Notifications</h2>
+        <h2> Inventory Notifications</h2>
         <p class="subtitle">Process received purchase orders and record inventory adjustments</p>
         
         <?php 
@@ -129,125 +131,196 @@ $notifications = $pdo->query(
         <?php else: ?>
         <table>
             <thead>
-                <tr>
-                    <th>Order #</th>
-                    <th>Item</th>
-                    <th>Brand</th>
-                    <th>Qty</th>
-                    <th>Message</th>
-                    <th>Received</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-            <?php foreach($notifications as $n): ?>
-                <?php $processed = isset($n['processed']) ? (int)$n['processed'] : 0; ?>
-                <tr data-id="<?= $n['id'] ?>">
-                    <td><strong><?= htmlspecialchars($n['order_number'] ?? '') ?></strong></td>
-                    <td><?= htmlspecialchars($n['display_item_name'] ?? $n['item_name']) ?></td>
-                    <td><?= htmlspecialchars($n['item_brand'] ?? '-') ?></td>
-                    <td><strong><?= $n['quantity'] ?></strong> units</td>
-                    <td><small><?= htmlspecialchars(substr($n['message'],0,50)) ?><?= strlen($n['message'])>50? '...':'' ?></small></td>
-                    <td><?= date('M d, Y', strtotime($n['created_at'])) ?></td>
-                    <td><span class="badge <?= $processed ? 'processed' : 'unprocessed' ?>"><?= $processed ? '✓ Processed' : '⏳ Pending' ?></span></td>
-                    <td>
-                        <?php if (!$processed): ?>
-                        <button onclick="openProcessModal(<?= $n['id'] ?>)" class="action-btn process"><i class="fas fa-check-circle"></i> Process</button>
-                        <?php else: ?>
-                        <button class="action-btn processed" disabled><i class="fas fa-check"></i> Done</button>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-        <?php endif; ?>
+				<tr>
+					<th>Order #</th>
+					<th>Item</th>
+					<th>Brand</th>
+					<th>Qty</th>
+					<th>Message</th>
+					<th>Received</th>
+					<th>Status</th>
+					<th>View</th>
+					<th>Action</th>
+				</tr>
+			</thead>
+			<tbody>
+			<?php foreach($notifications as $n): ?>
+				<?php $processed = isset($n['processed']) ? (int)$n['processed'] : 0; ?>
+				<tr 
+					data-id="<?= $n['id'] ?>"
+					data-order="<?= htmlspecialchars($n['order_number'] ?? '') ?>"
+					data-item="<?= htmlspecialchars($n['display_item_name'] ?? $n['item_name']) ?>"
+					data-brand="<?= htmlspecialchars($n['item_brand'] ?? '-') ?>"
+					data-qty="<?= (int)$n['quantity'] ?>"
+					data-message="<?= htmlspecialchars($n['display_message']) ?>"
+					data-received="<?= date('M d, Y', strtotime($n['created_at'])) ?>"
+					data-status="<?= $processed ? 'Processed' : 'Pending' ?>"
+					data-expiry="<?= $n['expiry_date'] ? date('M d, Y', strtotime($n['expiry_date'])) : '-' ?>"
+				>
+					<td><strong><?= htmlspecialchars($n['order_number'] ?? '') ?></strong></td>
+					<td><?= htmlspecialchars($n['display_item_name'] ?? $n['item_name']) ?></td>
+					<td><?= htmlspecialchars($n['item_brand'] ?? '-') ?></td>
+					<td><strong><?= $n['quantity'] ?></strong> units</td>
+					<td><small><?= htmlspecialchars(substr($n['display_message'],0,50)) ?><?= strlen($n['display_message'])>50? '...':'' ?></small></td>
+					<td><?= date('M d, Y', strtotime($n['created_at'])) ?></td>
+					<td><span class="badge <?= $processed ? 'processed' : 'unprocessed' ?>"><?= $processed ? '✓ Processed' : '⏳ Pending' ?></span></td>
+					<td>
+						<button type="button" class="action-btn" onclick="openViewModal(this)"><i class="fas fa-eye"></i> View</button>
+					</td>
+					<td>
+						<?php if (!$processed): ?>
+						<button onclick="openProcessModal(<?= $n['id'] ?>)" class="action-btn process"><i class="fas fa-check-circle"></i> Process</button>
+						<?php else: ?>
+						<button class="action-btn processed" disabled><i class="fas fa-check"></i> Done</button>
+						<?php endif; ?>
+					</td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
+		<?php endif; ?>
     </div>
 
-    <!-- Process Modal -->
-    <div id="processModal" class="modal-overlay">
-        <div class="modal">
-            <h3><i class="fas fa-tasks"></i> Process Notification</h3>
-            <form id="processForm">
-                <input type="hidden" id="notifId" name="notification_id">
-                
-                <div class="form-info">
-                    <div class="form-info-item"><strong>Order:</strong> <span id="procOrder">-</span></div>
-                    <div class="form-info-item"><strong>Item:</strong> <span id="procItem">-</span></div>
-                </div>
-                
-                <div class="form-group">
-                    <label><i class="fas fa-box"></i> Received Quantity *</label>
-                    <input id="procReceived" name="received_qty" type="number" min="0" required>
-                </div>
-                
-                <div class="form-group">
-                    <label><i class="fas fa-exclamation-triangle"></i> Defective Quantity</label>
-                    <input id="procDefective" name="defective_qty" type="number" min="0" value="0">
-                </div>
-                
-                <div class="form-group">
-                    <label><i class="fas fa-sticky-note"></i> Notes</label>
-                    <textarea id="procNotes" name="notes" rows="3" placeholder="Add any inspection notes..."></textarea>
-                </div>
-                
-                <div class="modal-actions">
-                    <button type="button" class="btn-cancel" onclick="closeProcessModal()"><i class="fas fa-times"></i> Cancel</button>
-                    <button type="submit" class="btn-submit"><i class="fas fa-save"></i> Save & Process</button>
-                </div>
-            </form>
-        </div>
-    </div>
+	<!-- Process Modal -->
+	<div id="processModal" class="modal-overlay">
+		<div class="modal">
+			<h3><i class="fas fa-tasks"></i> Process Notification</h3>
+			<form id="processForm">
+				<input type="hidden" id="notifId" name="notification_id">
+				
+				<div class="form-info">
+					<div class="form-info-item"><strong>Order:</strong> <span id="procOrder">-</span></div>
+					<div class="form-info-item"><strong>Item:</strong> <span id="procItem">-</span></div>
+				</div>
+				
+				<div class="form-group">
+					<label><i class="fas fa-box"></i> Received Quantity *</label>
+					<input id="procReceived" name="received_qty" type="number" min="0" required>
+				</div>
+				
+				<div class="form-group">
+					<label><i class="fas fa-exclamation-triangle"></i> Defective Quantity</label>
+					<input id="procDefective" name="defective_qty" type="number" min="0" value="0">
+				</div>
+				
+				<div class="form-group">
+					<label><i class="fas fa-calendar"></i> Expiry Date (if applicable)</label>
+					<input id="procExpiry" name="expiry_date" type="date">
+				</div>
+				
+				<div class="form-group">
+					<label><i class="fas fa-sticky-note"></i> Notes</label>
+					<textarea id="procNotes" name="notes" rows="3" placeholder="Add any inspection notes..."></textarea>
+				</div>
+				
+				<div class="modal-actions">
+					<button type="button" class="btn-cancel" onclick="closeProcessModal()"><i class="fas fa-times"></i> Cancel</button>
+					<button type="submit" class="btn-submit"><i class="fas fa-save"></i> Save & Process</button>
+				</div>
+			</form>
+		</div>
+	</div>
 
-    <script src="../assets/third_party/sweetalert.min.js"></script>
-    <script>
-        async function openProcessModal(id){
-            try{
-                const res = await fetch('../procurement/get_notification.php?id=' + id);
-                if (!res.ok) throw new Error('Failed');
-                const n = await res.json();
-                document.getElementById('notifId').value = n.id;
-                document.getElementById('procOrder').textContent = n.order_number || n.order_id || '';
-                document.getElementById('procItem').textContent = n.item_name;
-                document.getElementById('procReceived').value = n.quantity;
-                document.getElementById('procDefective').value = 0;
-                document.getElementById('procNotes').value = '';
-                document.getElementById('processModal').style.display = 'flex';
-                // Focus on first input
-                document.getElementById('procReceived').focus();
-            }catch(e){ console.error(e); swal('Error','Failed to load notification','error'); }
-        }
-        
-        function closeProcessModal(){ 
-            document.getElementById('processModal').style.display = 'none';
-        }
-        
-        // Close modal on overlay click
-        document.getElementById('processModal').addEventListener('click', function(e) {
-            if (e.target === this) closeProcessModal();
-        });
-        
-        // Close modal on Escape key
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && document.getElementById('processModal').style.display === 'flex') {
-                closeProcessModal();
-            }
-        });
+	<!-- View Modal -->
+	<div id="viewModal" class="modal-overlay">
+		<div class="modal">
+			<h3><i class="fas fa-eye"></i> Notification Details</h3>
+			<div class="form-info">
+				<div class="form-info-item"><strong>Order:</strong> <span id="viewOrder">-</span></div>
+				<div class="form-info-item"><strong>Item:</strong> <span id="viewItem">-</span></div>
+				<div class="form-info-item"><strong>Brand:</strong> <span id="viewBrand">-</span></div>
+				<div class="form-info-item"><strong>Quantity:</strong> <span id="viewQty">-</span></div>
+				<div class="form-info-item"><strong>Status:</strong> <span id="viewStatus">-</span></div>
+				<div class="form-info-item"><strong>Received:</strong> <span id="viewReceived">-</span></div>
+				<div class="form-info-item"><strong>Expiry Date:</strong> <span id="viewExpiry">-</span></div>
+			</div>
+			<div class="form-group">
+				<label><i class="fas fa-comment-alt"></i> Message</label>
+				<textarea id="viewMessage" rows="4" readonly></textarea>
+			</div>
+			<div class="modal-actions">
+				<button type="button" class="btn-cancel" onclick="closeViewModal()"><i class="fas fa-times"></i> Close</button>
+			</div>
+		</div>
+	</div>
 
-        document.getElementById('processForm').addEventListener('submit', async function(e){
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(e.target));
-            try{
-                const res = await fetch('process_notification.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
-                const j = await res.json();
-                if (j.success) { 
-                    swal('✓ Success','Notification processed successfully!','success').then(()=>location.reload()); 
-                } else {
-                    swal('Error', j.error||'Failed to process', 'error');
-                }
-            }catch(err){ console.error(err); swal('Error','Request failed','error'); }
-        });
-    </script>
+	<script src="../assets/third_party/sweetalert.min.js"></script>
+	<script>
+		async function openProcessModal(id){
+		try{
+			const res = await fetch('../procurement/get_notification.php?id=' + id);
+			if (!res.ok) throw new Error('Failed');
+			const n = await res.json();
+			document.getElementById('notifId').value = n.id;
+			document.getElementById('procOrder').textContent = n.order_number || n.order_id || '';
+			document.getElementById('procItem').textContent = n.item_name;
+			document.getElementById('procReceived').value = n.quantity;
+			document.getElementById('procDefective').value = 0;
+			document.getElementById('procExpiry').value = n.expiry_date || '';
+			document.getElementById('procNotes').value = '';
+			document.getElementById('processModal').style.display = 'flex';
+			// Focus on first input
+			document.getElementById('procReceived').focus();
+		}catch(e){ console.error(e); swal('Error','Failed to load notification','error'); }
+	}
+		
+		function closeProcessModal(){ 
+			document.getElementById('processModal').style.display = 'none';
+		}
+		
+		// Close process modal on overlay click
+		document.getElementById('processModal').addEventListener('click', function(e) {
+			if (e.target === this) closeProcessModal();
+		});
+		
+		// Close modals on Escape key
+		document.addEventListener('keydown', function(e) {
+			if (e.key === 'Escape') {
+				if (document.getElementById('processModal').style.display === 'flex') {
+					closeProcessModal();
+				}
+				if (document.getElementById('viewModal').style.display === 'flex') {
+					closeViewModal();
+				}
+			}
+		});
+
+		document.getElementById('processForm').addEventListener('submit', async function(e){
+			e.preventDefault();
+			const data = Object.fromEntries(new FormData(e.target));
+			try{
+				const res = await fetch('process_notification.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+				const j = await res.json();
+				if (j.success) { 
+					swal('✓ Success','Notification processed successfully!','success').then(()=>location.reload()); 
+				} else {
+					swal('Error', j.error||'Failed to process', 'error');
+				}
+			}catch(err){ console.error(err); swal('Error','Request failed','error'); }
+		});
+
+		function openViewModal(button){
+			const row = button.closest('tr');
+			if (!row) return;
+			document.getElementById('viewOrder').textContent = row.dataset.order || '-';
+			document.getElementById('viewItem').textContent = row.dataset.item || '-';
+			document.getElementById('viewBrand').textContent = row.dataset.brand || '-';
+			document.getElementById('viewQty').textContent = row.dataset.qty || '-';
+			document.getElementById('viewStatus').textContent = row.dataset.status || '-';
+			document.getElementById('viewReceived').textContent = row.dataset.received || '-';
+			document.getElementById('viewExpiry').textContent = row.dataset.expiry || '-';
+			document.getElementById('viewMessage').value = row.dataset.message || '';
+			document.getElementById('viewModal').style.display = 'flex';
+		}
+		
+		function closeViewModal(){
+			document.getElementById('viewModal').style.display = 'none';
+		}
+		
+		// Close view modal on overlay click
+		document.getElementById('viewModal').addEventListener('click', function(e) {
+			if (e.target === this) closeViewModal();
+		});
+	</script>
 </body>
 </html>

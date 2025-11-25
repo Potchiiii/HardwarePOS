@@ -171,13 +171,24 @@ require_once '../db.php';
         .item-price {
             color: #2980b9;
             font-weight: 600;
-            font-size: 1rem;
+            font-size: 0.95rem;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.2;
         }
 
         .item-stock {
             font-size: 0.8rem;
             color: #666;
             margin-top: auto;
+        }
+        
+        .wholesale-price {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 0.3rem;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         .cart-panel {
@@ -246,7 +257,8 @@ require_once '../db.php';
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            flex-shrink: 0;
+            flex-shrink: 1;
+            min-width: 150px;
         }
 
         .quantity-btn {
@@ -261,6 +273,7 @@ require_once '../db.php';
             align-items: center;
             justify-content: center;
             font-size: 0.9rem;
+            flex-shrink: 0;
         }
 
         .quantity-btn:hover {
@@ -268,12 +281,14 @@ require_once '../db.php';
         }
 
         .quantity-input {
-            width: 50px;
+            width: 100%;
+            min-width: 80px;
             text-align: center;
             border: 1px solid #ddd;
             border-radius: 4px;
             padding: 6px 4px;
             font-size: 0.9rem;
+            flex: 1;
         }
 
         .quantity-input::-webkit-inner-spin-button,
@@ -488,7 +503,7 @@ require_once '../db.php';
             }
 
             .item-price {
-                font-size: 0.9rem;
+                font-size: 0.85rem;
             }
 
             .item-stock {
@@ -672,11 +687,45 @@ require_once '../db.php';
                 while ($product = $stmt->fetch()) {
                     $stockClass = $product['quantity'] <= $product['low_threshold'] ? 'text-warning' : '';
                 ?>
-                <div class="product-card" onclick='addToCart(<?php echo json_encode($product); ?>)'>
+                <div class="product-card" data-product-id="<?= $product['id'] ?>" data-product="<?php echo htmlspecialchars(json_encode($product), ENT_QUOTES, 'UTF-8'); ?>">
                     <img src="../<?php echo htmlspecialchars($product['image_url'] ?? 'assets/product_images/no-image.jpg'); ?>" alt="<?php echo htmlspecialchars($product['name']); ?>" class="product-image">
                     <div class="item-name"><?php echo htmlspecialchars($product['name']); ?></div>
                     <div class="item-brand"><?php echo htmlspecialchars($product['brand']); ?></div>
-                    <div class="item-price">₱<?php echo number_format($product['price'], 2); ?></div>
+                    <div class="item-price">
+                        <?php 
+                            $price = 0;
+                            $priceType = '';
+                            if ($product['per_unit']) {
+                                $price = $product['per_unit'];
+                                $priceType = '(Per Unit)';
+                            } elseif ($product['per_length']) {
+                                $price = $product['per_length'];
+                                $priceType = '(Per Length)';
+                            } elseif ($product['per_kilo']) {
+                                $price = $product['per_kilo'];
+                                $priceType = '(Per Kilo)';
+                            } elseif ($product['whole_sale']) {
+                                $price = $product['whole_sale'];
+                                $priceType = '(Wholesale)';
+                            }
+                            echo '₱' . number_format($price, 2) . ' ' . $priceType;
+                        ?>
+                    </div>
+                    <div class="wholesale-price">
+                        <?php 
+                            if ($product['whole_sale']) {
+                                echo 'WS: ₱' . number_format($product['whole_sale'], 2);
+                                // Show deduction info
+                                if ($product['wholesale_deduction_units']) {
+                                    echo ' (' . $product['wholesale_deduction_units'] . ' units)';
+                                } elseif ($product['wholesale_deduction_meters']) {
+                                    echo ' (' . $product['wholesale_deduction_meters'] . ' m)';
+                                } elseif ($product['wholesale_deduction_kilos']) {
+                                    echo ' (' . $product['wholesale_deduction_kilos'] . ' kg)';
+                                }
+                            }
+                        ?>
+                    </div>
                     <div class="item-stock <?php echo $stockClass; ?>">Stock: <?php echo htmlspecialchars($product['quantity']); ?></div>
                 </div>
                 <?php } ?>
@@ -699,32 +748,173 @@ require_once '../db.php';
         let cart = [];
         let total = 0;
 
+        document.querySelectorAll('.product-card').forEach(card => {
+            card.addEventListener('click', function() {
+                const productData = JSON.parse(this.getAttribute('data-product'));
+                showAddToCartConfirm(productData);
+            });
+        });
+
+        function showAddToCartConfirm(product) {
+            const hasRetailPrice = (product.per_unit != null) || (product.per_length != null) || (product.per_kilo != null);
+            const hasWholesalePrice = (product.whole_sale != null);
+
+            let buttons = { cancel: 'Cancel' };
+            if (hasRetailPrice) buttons['retail'] = { text: 'Retail Price', value: 'retail' };
+            if (hasWholesalePrice) buttons['wholesale'] = { text: 'Wholesale Price', value: 'wholesale' };
+
+            if (!hasRetailPrice && !hasWholesalePrice) {
+                swal('Error', 'No price set for this product', 'error');
+                return;
+            }
+
+            swal({
+                title: 'Select Price Type',
+                text: product.name + ' - ' + product.brand,
+                buttons: buttons
+            }).then((value) => {
+                if (value === 'retail' || value === 'wholesale') {
+                    const toAdd = Object.assign({}, product, { priceType: value });
+                    addToCart(toAdd);
+                }
+            });
+        }
+
         function addToCart(product) {
-            const existing = cart.find(i => i.id === product.id);
-            if (existing) {
-                if (existing.quantity < product.quantity) existing.quantity++;
-                else return swal("Stock Limit", "Maximum stock reached", "warning");
+            // Determine the unit type and price
+            let unitType = 'unit';
+            let unitTypeLabel = '';
+            let quantityLabel = '';
+            let price = 0;
+            
+            if (product.priceType === 'wholesale') {
+                price = product.whole_sale;
+                unitType = 'unit';
             } else {
-                cart.push({
-                    id: product.id,
-                    name: product.name,
-                    brand: product.brand,
-                    price: parseFloat(product.price),
-                    quantity: 1,
-                    maxStock: product.quantity
+                // Detect available retail price type
+                if (product.per_unit != null) {
+                    price = product.per_unit;
+                    unitType = 'unit';
+                } else if (product.per_length != null) {
+                    price = product.per_length;
+                    unitType = 'length';
+                    unitTypeLabel = 'meters';
+                    quantityLabel = ' m';
+                } else if (product.per_kilo != null) {
+                    price = product.per_kilo;
+                    unitType = 'kilo';
+                    unitTypeLabel = 'kilos';
+                    quantityLabel = ' kg';
+                } else {
+                    swal('Error', 'No price available for this product', 'error');
+                    return;
+                }
+            }
+            
+            if (unitType === 'unit') {
+                // Per unit: ask for quantity (SweetAlert v1 input)
+                swal({
+                    title: `Enter quantity`,
+                    content: {
+                        element: 'input',
+                        attributes: {
+                            type: 'number',
+                            placeholder: 'e.g., 1, 2, 5',
+                            step: '1',
+                            min: '1',
+                            max: '999'
+                        }
+                    },
+                    buttons: {
+                        cancel: 'Cancel',
+                        confirm: 'Add to Cart'
+                    }
+                }).then((quantity) => {
+                    if (quantity === null || quantity === '') return;
+                    let qty = parseInt(quantity);
+                    if (!isNaN(qty) && qty > 0 && qty <= 999) {
+                        const existing = cart.find(i => i.id === product.id && i.unitType === 'unit');
+                        if (existing) {
+                            existing.quantity += qty;
+                        } else {
+                            cart.push({
+                                id: product.id,
+                                name: product.name,
+                                brand: product.brand,
+                                price: parseFloat(price),
+                                quantity: qty,
+                                maxStock: product.quantity,
+                                unitType: 'unit',
+                                quantityLabel: '',
+                                priceType: product.priceType
+                            });
+                        }
+                        updateCart();
+                        updateMobileToggle();
+                    } else {
+                        swal('Invalid', 'Please enter a number between 1 and 999', 'error');
+                    }
+                });
+            } else {
+                // Per length/kilo: ask for length/weight (one decimal place, SweetAlert v1 input)
+                const inputLabel = unitType === 'length' ? 'length in meters' : 'weight in kilos';
+                swal({
+                    title: `Enter ${inputLabel}`,
+                    content: {
+                        element: 'input',
+                        attributes: {
+                            type: 'number',
+                            placeholder: 'e.g., 1 or 1.5',
+                            step: '0.1',
+                            min: '0.1',
+                            max: '999.9'
+                        }
+                    },
+                    buttons: {
+                        cancel: 'Cancel',
+                        confirm: 'Add to Cart'
+                    }
+                }).then((quantity) => {
+                    if (quantity === null || quantity === '') return;
+                    let qty = parseFloat(quantity);
+                    qty = Math.round(qty * 10) / 10; // one decimal place
+                    if (!isNaN(qty) && qty > 0 && qty <= 999.9) {
+                        const existing = cart.find(i => i.id === product.id && i.unitType === unitType);
+                        if (existing) {
+                            existing.quantity = Math.round((existing.quantity + qty) * 10) / 10;
+                        } else {
+                            cart.push({
+                                id: product.id,
+                                name: product.name,
+                                brand: product.brand,
+                                price: parseFloat(price),
+                                quantity: qty,
+                                maxStock: product.quantity,
+                                unitType: unitType,
+                                quantityLabel: quantityLabel,
+                                priceType: product.priceType
+                            });
+                        }
+                        updateCart();
+                        updateMobileToggle();
+                    } else {
+                        swal('Invalid', 'Please enter a number between 0.1 and 999.9', 'error');
+                    }
                 });
             }
-            updateCart();
-            updateMobileToggle();
         }
 
         function updateQuantity(id, change) {
             const item = cart.find(i => i.id === id);
             if (!item) return;
-            const newQ = item.quantity + change;
-            if (newQ > 0 && newQ <= item.maxStock) {
+            const delta = parseFloat(change);
+            let newQ = item.quantity + delta;
+            // Enforce one decimal for length/kilo
+            if (item.quantityLabel) newQ = Math.round(newQ * 10) / 10;
+            const minQ = item.quantityLabel ? 0.1 : 1;
+            if (newQ >= minQ && newQ <= item.maxStock) {
                 item.quantity = newQ;
-            } else if (newQ === 0) {
+            } else if (newQ < minQ) {
                 removeItem(id);
                 return;
             }
@@ -736,11 +926,17 @@ require_once '../db.php';
             const item = cart.find(i => i.id === id);
             if (!item) return;
 
-            let qty = parseInt(value);
+            let qty = parseFloat(value);
+            if (item.quantityLabel) {
+                // one decimal place for length/kilo
+                qty = Math.round(qty * 10) / 10;
+            } else {
+                qty = Math.round(qty);
+            }
 
+            const minQ = item.quantityLabel ? 0.1 : 1;
             if (qty > item.maxStock) {
                 item.quantity = item.maxStock;
-
                 swal({
                     title: "Stock Limit Reached",
                     text: `Only ${item.maxStock} in stock for ${item.brand} - ${item.name}.`,
@@ -748,7 +944,7 @@ require_once '../db.php';
                     buttons: false,
                     timer: 5000
                 });
-            } else if (qty < 1) {
+            } else if (qty < minQ) {
                 removeItem(id);
                 return;
             } else {
@@ -774,17 +970,24 @@ require_once '../db.php';
             cart.forEach(item => {
                 const subtotal = item.price * item.quantity;
                 total += subtotal;
+                let quantityDisplay;
+                let quantityStep;
+                if (item.quantityLabel) {
+                    quantityDisplay = `${item.quantity.toFixed(1)}${item.quantityLabel}`;
+                    quantityStep = '0.1';
+                } else {
+                    quantityDisplay = item.quantity;
+                    quantityStep = '1';
+                }
                 cartDiv.innerHTML += `
                     <div class="cart-item">
                         <div class="item-details">
                             <div class="item-name">${item.name}</div>
                             <div class="item-brand">${item.brand}</div>
-                            <div class="item-subtotal">₱${item.price.toLocaleString('en-PH', { minimumFractionDigits: 2 })} × ${item.quantity} = ₱${subtotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>
+                            <div class="item-subtotal">₱${item.price.toLocaleString('en-PH', { minimumFractionDigits: 2 })} × ${quantityDisplay} = ₱${subtotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>
                         </div>
                         <div class="controls">
-                            <button class="quantity-btn" onclick="updateQuantity(${item.id}, -1)"><i class="fas fa-minus"></i></button>
-                            <input type="number" class="quantity-input" value="${item.quantity}" min="1" max="${item.maxStock}" onchange="setQuantity(${item.id}, this.value)">
-                            <button class="quantity-btn" onclick="updateQuantity(${item.id}, 1)"><i class="fas fa-plus"></i></button>
+                            <input type="number" class="quantity-input" value="${item.quantity}" min="${item.quantityLabel ? '0.1' : '1'}" step="${quantityStep}" onchange="setQuantity(${item.id}, this.value)" style="flex: 1;">
                             <button class="remove-btn" onclick="removeItem(${item.id})"><i class="fas fa-trash-alt"></i></button>
                         </div>
                     </div>
@@ -913,8 +1116,12 @@ require_once '../db.php';
 
                 const change = received - total;
 
+                // Check if cart has wholesale items
+                const hasWholesale = cart.some(item => item.priceType === 'wholesale');
+                const endpoint = hasWholesale ? 'process_wholesale_checkout.php' : 'process_checkout.php';
+
                 // Proceed to process the sale
-                fetch('process_checkout.php', {
+                fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ cart, received })

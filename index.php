@@ -304,21 +304,6 @@
               <i class="fas fa-eye absolute top-1/2 right-4 -translate-y-1/2 cursor-pointer text-gray-400 hover:text-gray-600" id="togglePassword"></i>
             </div>
           </div>
-          <div>
-            <label for="userType" class="block text-sm font-medium text-gray-700 mb-2">User Type</label>
-            <select 
-              id="userType" 
-              name="userType" 
-              required
-              class="w-full px-4 py-3 bg-gray-50 border border-gray-300 text-gray-900 rounded-lg focus-theme input-focus"
-            >
-              <option value="" disabled selected>Select User Type</option>
-              <option value="cashier">Cashier</option>
-              <option value="staff">Staff</option>
-              <option value="procurement">Procurement</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
           <button 
             type="submit"
             class="w-full py-3 px-4 text-white text-sm font-medium rounded-lg shadow-md btn-theme mt-4"

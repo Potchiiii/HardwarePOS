@@ -412,7 +412,6 @@ $orders = $pdo->query("
                     <select id="orderStatus" name="status" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
                         <option value="">Select status...</option>
                         <option value="pending">Pending</option>
-                        <option value="approved">Approved</option>
                         <option value="ordered">Ordered</option>
                         <option value="received">Received</option>
                     </select>

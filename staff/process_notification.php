@@ -75,6 +75,12 @@ try{
         $stmtRI = $pdo->prepare("INSERT INTO receipt_items (receipt_id, inventory_id, order_id, quantity, defective, notes) VALUES (?, ?, ?, ?, ?, ?)");
         $stmtRI->execute([$rid, $itemId, $orderId, $received, $defective, $data['notes'] ?? null]);
 
+        // Update purchase_orders with expiry date if provided
+        if (!empty($orderId) && isset($data['expiry_date']) && !empty($data['expiry_date'])) {
+            $updateExpiryStmt = $pdo->prepare("UPDATE purchase_orders SET expiry_date = ? WHERE id = ?");
+            $updateExpiryStmt->execute([$data['expiry_date'], $orderId]);
+        }
+
         // mark notification processed
         $upd = $pdo->prepare("UPDATE notifications SET processed = 1, processed_by = ?, processed_at = NOW(), processed_notes = ?, processed_added_qty = ?, processed_defective_qty = ? WHERE id = ?");
         $upd->execute([$_SESSION['user_id'], $data['notes'] ?? null, $toAdd, $defective, $nid]);

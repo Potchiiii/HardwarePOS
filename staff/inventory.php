@@ -255,43 +255,6 @@ require_once '../db.php';
         background-color: #e2e6ea;
     }
 
-    /* Stock control styles */
-    .stock-control {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .stock-btn {
-      width: 28px;
-      height: 28px;
-      border-radius: 4px;
-      border: none;
-      color: white;
-      cursor: pointer;
-      transition: opacity 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .stock-btn:hover {
-      opacity: 0.8;
-    }
-
-    .stock-btn.decrease {
-      background-color: #e74c3c;
-    }
-
-    .stock-btn.increase {
-      background-color: #2ecc71;
-    }
-
-    .quantity {
-      min-width: 40px;
-      text-align: center;
-      font-weight: bold;
-    }
 
     /* Add new style for product images */
         .product-image {
@@ -345,6 +308,11 @@ require_once '../db.php';
             color: white;
         }
 
+        .action-btn.view {
+            background-color: #6c757d;
+            color: white;
+        }
+
         .action-btn.delete {
             background-color: #e74c3c;
             color: white;
@@ -352,19 +320,6 @@ require_once '../db.php';
 
         .action-btn:hover {
             opacity: 0.8;
-        }
-
-        .stock-btn {
-            width: 28px;
-            height: 28px;
-            border-radius: 4px;
-            border: none;
-            color: white;
-            cursor: pointer;
-            transition: opacity 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
 
         .top-controls {
@@ -461,18 +416,8 @@ require_once '../db.php';
                     <td><?= htmlspecialchars($item['id']) ?></td>
                     <td><?= htmlspecialchars($item['name']) ?></td>
                     <td><?= htmlspecialchars($item['brand']) ?></td>
-                    <td>
-                        <div class="stock-control">
-                            <button class="stock-btn decrease" onclick="promptUpdateStock(<?= $item['id'] ?>, 'remove')">
-                                <i class="fas fa-minus"></i>
-                            </button>
-                            <span class="quantity"><?= htmlspecialchars($item['quantity']) ?></span>
-                            <button class="stock-btn increase" onclick="promptUpdateStock(<?= $item['id'] ?>, 'add')">
-                                <i class="fas fa-plus"></i>
-                            </button>
-                        </div>
-                    </td>
-                    <td><?= number_format($item['price'], 2) ?></td>
+                    <td><?= htmlspecialchars($item['quantity']) ?></td>
+                    <td><?= number_format($item['per_unit'] ?? 0, 2) ?></td>
                     <td><?= number_format($item['whole_sale'], 2) ?></td>
                     <td><?= number_format($item['per_kilo'], 2) ?></td>
                     <td><?= number_format($item['per_length'], 2) ?></td>
@@ -485,6 +430,9 @@ require_once '../db.php';
                         <?php endif; ?>
                     </td>
                                 <td>
+                                    <button class="action-btn view" onclick="viewItemOrders(<?= $item['id'] ?>)">
+                                        <i class="fas fa-eye"></i> View
+                                    </button>
                                     <button class="action-btn delete" onclick="deleteItem(<?= $item['id'] ?>)">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -520,7 +468,30 @@ require_once '../db.php';
                 </table>
             </div>
         </div>
-    </div>        <script>
+    </div>
+    <div class="modal-overlay" id="itemOrdersModalOverlay">
+        <div class="modal" id="itemOrdersModal" style="width: 700px;">
+            <div class="modal-header">
+                <h3>Item Orders: <span id="itemOrdersItemName"></span></h3>
+                <button class="close-btn" onclick="hideItemOrdersModal()">&times;</button>
+            </div>
+            <div style="overflow-y: auto; max-height: 500px;">
+                <table style="width: 100%;">
+                    <thead>
+                        <tr>
+                            <th>Order Number</th>
+                            <th>Received Qty</th>
+                            <th>Defective</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemOrdersTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+        <script>
         // Edit modal removed; procurement handles item creation/edits.
 
         // Load pending batches on page load
@@ -560,14 +531,20 @@ require_once '../db.php';
                         <td>${batch.brand || '-'}</td>
                         <td>${batch.quantity}</td>
                         <td>
-                            <button class="action-btn edit" onclick="acceptBatch('${batch.batch_id}', ${batch.item_id}, '${batch.item_name}', '${batch.brand || ''}', ${batch.quantity})">
-                                Accept
-                            </button>
-                            <button class="action-btn delete" onclick="rejectBatch('${batch.batch_id}')">
-                                Reject
-                            </button>
+                            <button class="action-btn edit btn-accept">Accept</button>
+                            <button class="action-btn delete btn-reject">Reject</button>
                         </td>
                     `;
+                    const acceptBtn = row.querySelector('.btn-accept');
+                    const rejectBtn = row.querySelector('.btn-reject');
+                    if (acceptBtn) {
+                        acceptBtn.addEventListener('click', () =>
+                            acceptBatch(batch.batch_id, batch.item_id, batch.item_name, batch.brand || '', batch.quantity)
+                        );
+                    }
+                    if (rejectBtn) {
+                        rejectBtn.addEventListener('click', () => rejectBatch(batch.batch_id));
+                    }
                     tbody.appendChild(row);
                 });
                 
@@ -580,6 +557,10 @@ require_once '../db.php';
 
         function hideBatchesModal() {
             document.getElementById('batchesModalOverlay').classList.remove('active');
+        }
+
+        function hideItemOrdersModal() {
+            document.getElementById('itemOrdersModalOverlay').classList.remove('active');
         }
 
         async function acceptBatch(batchId, itemId, itemName, brand, quantity) {
@@ -635,142 +616,38 @@ require_once '../db.php';
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', loadPendingBatches);
 
-
-        async function promptUpdateStock(id, action) {
-            // Adding stock uses the existing flow
-            if (action === 'add') {
-                const amountStr = prompt('Enter quantity to add:', '1');
-                if (amountStr === null || amountStr.trim() === '' || !/^\d+$/.test(amountStr)) return;
-                const amount = parseInt(amountStr, 10);
-                if (amount <= 0) { alert('Please enter a valid quantity'); return; }
-                await updateStock(id, amount);
-                return;
-            }
-
-            // Removing stock: ask which batch to reduce from using SweetAlert
-            try {
-                const resp = await fetch(`inventoryActions/getBatchesForItem.php?item_id=${encodeURIComponent(id)}`);
-                if (!resp.ok) throw new Error('Failed to fetch batches');
-                const batches = await resp.json();
-
-                if (!Array.isArray(batches) || batches.length === 0) {
-                    swal('No batches', 'There are no received batches with available quantity for this item.', 'info');
-                    return;
-                }
-
-                // Create a select element
-                const select = document.createElement('select');
-                select.id = 'swal-batch-select';
-                select.style.width = '100%';
-                select.style.padding = '8px';
-                batches.forEach(b => {
-                    const opt = document.createElement('option');
-                    opt.value = b.batch_id;
-                    opt.textContent = `${b.batch_id} — available: ${b.quantity}`;
-                    opt.dataset.available = b.quantity;
-                    select.appendChild(opt);
-                });
-
-                // Ask user to choose batch
-                await swal({
-                    title: 'Select Batch',
-                    content: select,
-                    buttons: {
-                        cancel: true,
-                        confirm: { text: 'Continue', closeModal: true }
-                    }
-                });
-
-                const chosen = select.value;
-                if (!chosen) return;
-                const available = parseInt(select.options[select.selectedIndex].dataset.available, 10) || 0;
-
-                // Ask for amount (limit by available)
-                const amountInput = document.createElement('input');
-                amountInput.type = 'number';
-                amountInput.min = 1;
-                amountInput.max = available;
-                amountInput.value = 1;
-                amountInput.style.width = '100%';
-                amountInput.style.padding = '8px';
-
-                const val = await swal({
-                    title: 'Quantity to remove',
-                    text: `Available in ${chosen}: ${available}`,
-                    content: amountInput,
-                    buttons: {
-                        cancel: true,
-                        confirm: { text: 'Remove', closeModal: true }
-                    }
-                });
-
-                // SweetAlert returns null on cancel; when content is element it returns element.value in some builds, but to be safe read input value
-                const amountStr = amountInput.value;
-                if (!amountStr || !/^\d+$/.test(amountStr)) return;
-                const amount = parseInt(amountStr, 10);
-                if (amount <= 0) return;
-
-                // Call backend to decrease batch and inventory
-                const decResp = await fetch('inventoryActions/decrease_batch_stock.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ batch_id: chosen, item_id: id, amount })
-                });
-
-                if (!decResp.ok) throw new Error('Failed to decrease stock');
-                const decData = await decResp.json();
-                if (decData.error) throw new Error(decData.error);
-
-                // Update UI
+        async function viewItemOrders(id, name) {
+            const nameEl = document.getElementById('itemOrdersItemName');
+            const tbody = document.getElementById('itemOrdersTableBody');
+            if (!name) {
                 const row = document.querySelector(`tr[data-id="${id}"]`);
                 if (row) {
-                    const quantitySpan = row.querySelector('.quantity');
-                    if (quantitySpan) quantitySpan.textContent = decData.new_inventory_quantity;
-
-                    const lowCell = row.querySelector('.low-stock-cell');
-                    if (decData.isLow) {
-                        row.classList.add('low-stock');
-                        if (lowCell) lowCell.innerHTML = '<span class="badge">Low Stock</span>';
-                    } else {
-                        row.classList.remove('low-stock');
-                        if (lowCell) lowCell.innerHTML = '&mdash;';
-                    }
+                    const nameCell = row.querySelector('td:nth-child(3)');
+                    name = nameCell ? nameCell.textContent : '';
                 }
-
-                swal('Removed', `Removed ${amount} from batch ${chosen}`, 'success');
-            } catch (err) {
-                console.error(err);
-                swal('Error', err.message || 'Failed to remove stock', 'error');
             }
-        }
-
-        async function updateStock(id, change) {
+            nameEl.textContent = name || '';
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#666;">Loading...</td></tr>';
             try {
-                const response = await fetch('inventoryActions/update_stock.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id, change })
-                });
-                
-                if (!response.ok) throw new Error('Update failed');
-                
-                const data = await response.json();
-                const row = document.querySelector(`tr[data-id="${id}"]`);
-                const quantitySpan = row.querySelector('.quantity');
-                quantitySpan.textContent = data.quantity;
-
-                // Update low stock status
-                const lowCell = row.querySelector('.low-stock-cell');
-                if (data.isLow) {
-                    row.classList.add('low-stock');
-                    lowCell.innerHTML = '<span class="badge">Low Stock</span>';
+                const resp = await fetch(`inventoryActions/get_item_orders.php?item_id=${encodeURIComponent(id)}`);
+                if (!resp.ok) throw new Error('Failed to fetch');
+                const data = await resp.json();
+                tbody.innerHTML = '';
+                if (!Array.isArray(data) || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#666;">No orders for this item.</td></tr>';
                 } else {
-                    row.classList.remove('low-stock');
-                    lowCell.innerHTML = '&mdash;';
+                    data.forEach(row => {
+                        const tr = document.createElement('tr');
+                        const orderNum = row.order_number || `Order ${row.order_id}`;
+                        const qty = (row.quantity !== undefined && row.quantity !== null) ? row.quantity : 0;
+                        const defective = (row.defective !== undefined && row.defective !== null) ? row.defective : 0;
+                        tr.innerHTML = `<td><strong>${orderNum}</strong></td><td>${qty}</td><td>${defective}</td>`;
+                        tbody.appendChild(tr);
+                    });
                 }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Failed to update stock');
+                document.getElementById('itemOrdersModalOverlay').classList.add('active');
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#e74c3c;">Error loading data.</td></tr>';
             }
         }
 

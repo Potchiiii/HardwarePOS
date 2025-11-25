@@ -69,7 +69,6 @@ function getSalesDataForAI($pdo, $from_date, $to_date) {
         i.name,
         i.brand,
         i.category,
-        i.price,
         SUM(si.quantity) as units_sold,
         SUM(si.quantity * si.price) as revenue
         FROM inventory i
@@ -104,7 +103,7 @@ function getSalesDataForAI($pdo, $from_date, $to_date) {
         category,
         COUNT(*) as total_products,
         SUM(quantity) as total_stock,
-        AVG(price) as avg_price
+        AVG(per_unit) as avg_price
         FROM inventory
         GROUP BY category";
     $data['inventory_status'] = $pdo->query($inventory_query)->fetchAll(PDO::FETCH_ASSOC);
@@ -248,18 +247,20 @@ $avg_transaction = $avg_transaction_stmt->fetch()['avg_transaction'];
 $monthly_sales_query = "SELECT MONTH(sale_date) as month, MONTHNAME(sale_date) as month_name, COALESCE(SUM(total_amount), 0) as total_sales FROM inventory_logs WHERE YEAR(sale_date) = YEAR(CURDATE()) GROUP BY MONTH(sale_date), MONTHNAME(sale_date) ORDER BY MONTH(sale_date)";
 $monthly_data = $pdo->query($monthly_sales_query)->fetchAll();
 
-$category_sales_query = "SELECT i.category, COALESCE(SUM(si.quantity * si.price), 0) as total_sales FROM inventory i LEFT JOIN inventory_log_items si ON i.id = si.inventory_id LEFT JOIN inventory_logs s ON si.sale_id = s.id WHERE s.sale_date BETWEEN ? AND ? GROUP BY i.category ORDER BY total_sales DESC";
+$category_sales_query = "SELECT i.name, i.brand, COALESCE(SUM(si.quantity * si.price), 0) as total_sales FROM inventory_log_items si LEFT JOIN inventory i ON i.id = si.inventory_id LEFT JOIN inventory_logs s ON si.sale_id = s.id WHERE s.sale_date BETWEEN ? AND ? GROUP BY i.id, i.name, i.brand HAVING total_sales > 0 ORDER BY total_sales DESC";
 $category_sales_stmt = $pdo->prepare($category_sales_query);
 $category_sales_stmt->execute([$from_date, $to_date . ' 23:59:59']);
 $category_data = $category_sales_stmt->fetchAll();
 
-$top_products_query = "SELECT i.name, i.brand, COALESCE(SUM(si.quantity), 0) as total_quantity FROM inventory i LEFT JOIN inventory_log_items si ON i.id = si.inventory_id LEFT JOIN inventory_logs s ON si.sale_id = s.id WHERE s.sale_date BETWEEN ? AND ? GROUP BY i.id, i.name, i.brand ORDER BY total_quantity DESC LIMIT 5";
+$top_products_query = "SELECT i.name, i.brand, COALESCE(SUM(si.quantity), 0) as total_quantity FROM inventory i LEFT JOIN inventory_log_items si ON i.id = si.inventory_id LEFT JOIN inventory_logs s ON si.sale_id = s.id WHERE s.sale_date BETWEEN ? AND ? GROUP BY i.id, i.name, i.brand HAVING total_quantity > 0 ORDER BY total_quantity DESC LIMIT 5";
 $top_products_stmt = $pdo->prepare($top_products_query);
 $top_products_stmt->execute([$from_date, $to_date . ' 23:59:59']);
 $top_products = $top_products_stmt->fetchAll();
 
-$recent_transactions_query = "SELECT s.sale_date, s.id as sale_id, s.total_amount, u.username as cashier, GROUP_CONCAT(CONCAT(i.brand, ' - ', i.name, ' (', si.quantity, ')') SEPARATOR ', ') as items FROM inventory_logs s JOIN users u ON s.user_id = u.id LEFT JOIN inventory_log_items si ON s.id = si.sale_id LEFT JOIN inventory i ON si.inventory_id = i.id GROUP BY s.id, s.sale_date, s.total_amount, u.username ORDER BY s.sale_date DESC LIMIT 10";
-$recent_transactions = $pdo->query($recent_transactions_query)->fetchAll();
+$recent_transactions_query = "SELECT s.sale_date, s.id as sale_id, s.total_amount, u.username as cashier, GROUP_CONCAT(CONCAT(i.brand, ' - ', i.name, ' (', si.quantity, ')') SEPARATOR ', ') as items FROM inventory_logs s JOIN users u ON s.user_id = u.id LEFT JOIN inventory_log_items si ON s.id = si.sale_id LEFT JOIN inventory i ON si.inventory_id = i.id WHERE s.sale_date BETWEEN ? AND ? GROUP BY s.id, s.sale_date, s.total_amount, u.username ORDER BY s.sale_date DESC LIMIT 10";
+$recent_transactions_stmt = $pdo->prepare($recent_transactions_query);
+$recent_transactions_stmt->execute([$from_date, $to_date . ' 23:59:59']);
+$recent_transactions = $recent_transactions_stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -482,23 +483,24 @@ $recent_transactions = $pdo->query($recent_transactions_query)->fetchAll();
 
     .charts {
       display: grid;
-      grid-template-columns: 2fr 1fr;
-      gap: 30px;
-      margin-bottom: 40px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
     }
     .chart-wrapper {
-      max-width: 600px;
       width: 100%;
-      margin: 0 auto;
+      margin: 0;
+      min-height: 280px;
     }
     canvas {
       background: #fff;
-      border-radius: 8px;
-      padding: 16px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      border-radius: 6px;
+      padding: 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      max-height: 280px;
     }
     .section {
-      margin-bottom: 40px;
+      margin-bottom: 25px;
     }
     .section h3 {
       margin-bottom: 15px;
@@ -542,14 +544,6 @@ $recent_transactions = $pdo->query($recent_transactions_query)->fetchAll();
   <div class="content">
     <h2 class="page-title">Sales Report & AI Analytics</h2>
 
-    <div class="filter-bar">
-      <form method="GET" style="display: flex; gap: 15px; align-items: center;">
-        <label>From <input type="date" name="from" value="<?php echo htmlspecialchars($from_date); ?>"></label>
-        <label>To   <input type="date" name="to" value="<?php echo htmlspecialchars($to_date); ?>"></label>
-        <button type="submit">Apply</button>
-      </form>
-    </div>
-
     <div class="summary">
       <div class="card">
         <h3>₱<?php echo number_format($today_sales, 2); ?></h3>
@@ -570,11 +564,6 @@ $recent_transactions = $pdo->query($recent_transactions_query)->fetchAll();
         <h3>₱<?php echo number_format($avg_transaction, 2); ?></h3>
         <p>Avg. per Transaction</p>
       </div>
-      <div class="card">
-        <h3>₱0.00</h3>
-        <p>Refunds</p>
-        <small style="color: #7f8c8d; font-size: 11px;">No refund system</small>
-      </div>
     </div>
 
     <!-- AI Business Analyst Section -->
@@ -586,16 +575,22 @@ $recent_transactions = $pdo->query($recent_transactions_query)->fetchAll();
           <button id="askAI">Analyze</button>
         </div>
         <div class="quick-actions">
-          <button class="quick-action-btn" data-question="Give me a comprehensive business analysis">📊 Full Analysis</button>
-          <button class="quick-action-btn" data-question="What are my best performing products and categories?">🏆 Top Performers</button>
-          <button class="quick-action-btn" data-question="What recommendations do you have to increase sales?">💡 Recommendations</button>
-          <button class="quick-action-btn" data-question="Analyze the daily sales trends">📈 Trends</button>
-          <button class="quick-action-btn" data-question="Compare cashier performance">👥 Cashiers</button>
+          <button class="quick-action-btn" data-question="Give me a comprehensive business analysis"> Full Analysis</button>
+          <button class="quick-action-btn" data-question="What recommendations do you have to increase sales?"> Recommendations</button>
+          <button class="quick-action-btn" data-question="Analyze the daily sales trends"> Trends</button>
         </div>
       </div>
       <div id="aiResponse" class="ai-response" style="display:none;">
         <p>Ask me anything about your sales data!</p>
       </div>
+    </div>
+
+    <div class="filter-bar">
+      <form method="GET" style="display: flex; gap: 15px; align-items: center;">
+        <label>From <input type="date" name="from" value="<?php echo htmlspecialchars($from_date); ?>"></label>
+        <label>To   <input type="date" name="to" value="<?php echo htmlspecialchars($to_date); ?>"></label>
+        <button type="submit">Apply</button>
+      </form>
     </div>
 
     <div class="charts">
@@ -605,12 +600,8 @@ $recent_transactions = $pdo->query($recent_transactions_query)->fetchAll();
       <div class="chart-wrapper">
         <canvas id="categoryPieChart" height="200"></canvas>
       </div>
-    </div>
-
-    <div class="section">
-      <h3>Top Selling Products</h3>
       <div class="chart-wrapper">
-        <canvas id="topProductsBar" height="150"></canvas>
+        <canvas id="topProductsBar" height="200"></canvas>
       </div>
     </div>
 
@@ -695,24 +686,24 @@ $recent_transactions = $pdo->query($recent_transactions_query)->fetchAll();
     }
   });
 
-  const categoryLabels = categoryData.map(item => item.category);
-  const categorySales = categoryData.map(item => parseFloat(item.total_sales));
-  const categoryColors = ['#1abc9c','#e67e22','#3498db','#9b59b6','#e74c3c','#f39c12'];
+  const itemLabels = categoryData.map(item => `${item.brand} - ${item.name}`);
+  const itemSales = categoryData.map(item => parseFloat(item.total_sales));
+  const itemColors = ['#1abc9c','#e67e22','#3498db','#9b59b6','#e74c3c','#f39c12','#2ecc71','#e74c3c','#3498db','#f39c12'];
 
   new Chart(document.getElementById('categoryPieChart'), {
     type: 'pie',
     data: {
-      labels: categoryLabels.length > 0 ? categoryLabels : ['No Data'],
+      labels: itemLabels.length > 0 ? itemLabels : ['No Data'],
       datasets: [{
-        data: categorySales.length > 0 ? categorySales : [1],
-        backgroundColor: categoryColors.slice(0, Math.max(categoryLabels.length, 1))
+        data: itemSales.length > 0 ? itemSales : [1],
+        backgroundColor: itemColors.slice(0, Math.max(itemLabels.length, 1))
       }]
     },
     options: {
       responsive: true,
       plugins: { 
         legend: { position: 'bottom' },
-        title: { display: true, text: 'Sales by Category' }
+        title: { display: true, text: 'Sales by Item' }
       }
     }
   });

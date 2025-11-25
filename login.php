@@ -5,10 +5,9 @@ require_once 'db.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
-    $userType = $_POST['userType'] ?? '';
 
-    if (empty($username) || empty($password) || empty($userType)) {
-        $message = "All fields are required.";
+    if (empty($username) || empty($password)) {
+        $message = "Username and password are required.";
         include 'error_alert.php';
         exit();
     }
@@ -19,12 +18,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$user || !password_verify($password, $user['password'])) {
         $message = "Invalid username or password.";
-        include 'error_alert.php';
-        exit();
-    }
-
-    if ($user['user_type'] !== $userType) {
-        $message = "User type mismatch.";
         include 'error_alert.php';
         exit();
     }

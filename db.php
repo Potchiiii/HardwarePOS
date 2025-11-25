@@ -15,6 +15,10 @@ $options = [
 
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
+    
+    // Set timezone to Manila, Philippines (UTC+8)
+    $pdo->exec("SET time_zone = '+08:00'");
+    date_default_timezone_set('Asia/Manila');
 } catch (PDOException $e) {
     die("Database connection failed: " . $e->getMessage());
 }

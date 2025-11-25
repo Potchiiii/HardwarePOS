@@ -173,9 +173,13 @@ $totalInventoryItems = $pdo->query("SELECT COUNT(*) as count FROM inventory")->f
                 <i class="fas fa-list"></i>
                 View Orders
             </a>
-            <a href="notify_staff.php" class="action-btn">
-                <i class="fas fa-bell"></i>
-                Notify Staff
+            <a href="suppliers.php" class="action-btn">
+                <i class="fas fa-building"></i>
+                Manage Suppliers
+            </a>
+            <a href="inventory_settings.php" class="action-btn">
+                <i class="fas fa-cog"></i>
+                Inventory Settings
             </a>
         </div>
 
@@ -188,7 +192,8 @@ $totalInventoryItems = $pdo->query("SELECT COUNT(*) as count FROM inventory")->f
                     <li style="margin-bottom: 10px;"><strong>View Low Stock:</strong> See items that need ordering</li>
                     <li style="margin-bottom: 10px;"><strong>Create Order:</strong> Create new purchase orders</li>
                     <li style="margin-bottom: 10px;"><strong>View Orders:</strong> Manage order status</li>
-                    <li><strong>Notify Staff:</strong> Alert inventory staff when stock arrives</li>
+                    <li style="margin-bottom: 10px;"><strong>Manage Suppliers:</strong> Add and manage supplier information</li>
+                    <li><strong>Inventory Settings:</strong> Configure inventory thresholds and settings</li>
                 </ul>
             </div>
         </div>

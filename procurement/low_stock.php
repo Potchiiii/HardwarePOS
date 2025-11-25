@@ -268,14 +268,7 @@ $lowStockItems = $pdo->query("
                     </td>
                     <td><?= htmlspecialchars($item['brand'] ?? '-') ?></td>
                     <td><?= $item['quantity'] ?> units</td>
-                    <td>
-                        <div class="threshold-cell">
-                            <span class="threshold-value"><?= $item['low_threshold'] ?></span>
-                            <button class="threshold-edit-btn" onclick="editThreshold(<?= $item['id'] ?>, <?= $item['low_threshold'] ?>, '<?= htmlspecialchars($item['name']) ?>')">
-                                <i class="fas fa-edit"></i> Edit
-                            </button>
-                        </div>
-                    </td>
+                    <td><?= $item['low_threshold'] ?></td>
                     <td>
                         <div class="threshold-bar">
                             <div class="threshold-fill" style="width: <?= ($item['quantity'] / $item['low_threshold'] * 100) ?>%"></div>
