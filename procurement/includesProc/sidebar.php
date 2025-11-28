@@ -7,7 +7,7 @@
   $lowStockCount = $pdo->query("SELECT COUNT(*) as count FROM inventory WHERE quantity <= low_threshold")->fetch()['count'] ?? 0;
 ?>
 <div class="h-screen w-[240px] fixed top-0 left-0 bg-gray-900 text-white flex flex-col px-4 py-6 shadow-lg">
-  <h2 class="text-2xl font-bold text-center mb-8 text-white">Cabatangan Hardware</h2>
+  <h2 class="text-2xl font-bold text-center mb-8 text-white">HardwarePOS</h2>
 
   <a href="../procurement/dashboard.php"
      class="flex items-center gap-3 py-3 px-4 rounded-md transition 

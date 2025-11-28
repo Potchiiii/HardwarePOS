@@ -6,7 +6,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 require_once '../db.php';
 
-// Fetch sales data with items and cashier name
+// Fetch sales data with items and cashier name (excluding negative transactions)
 $sql = "SELECT 
             s.id AS sale_id, 
             s.sale_date, 
@@ -18,6 +18,7 @@ $sql = "SELECT
         JOIN users u ON s.user_id = u.id
         JOIN inventory_log_items si ON s.id = si.sale_id
         JOIN inventory i ON si.inventory_id = i.id
+        WHERE s.total_amount > 0
         GROUP BY s.id
         ORDER BY s.sale_date DESC";
 

@@ -290,13 +290,20 @@ $notifications = $pdo->query(
 			const data = Object.fromEntries(new FormData(e.target));
 			try{
 				const res = await fetch('process_notification.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+				if (!res.ok) {
+					const text = await res.text();
+					throw new Error(`HTTP ${res.status}: ${text}`);
+				}
 				const j = await res.json();
-				if (j.success) { 
+				if (j.success === true) { 
 					swal('✓ Success','Notification processed successfully!','success').then(()=>location.reload()); 
 				} else {
-					swal('Error', j.error||'Failed to process', 'error');
+					swal('Error', j.error || j.message || 'Failed to process notification', 'error');
 				}
-			}catch(err){ console.error(err); swal('Error','Request failed','error'); }
+			}catch(err){ 
+				console.error('Processing error:', err); 
+				swal('Error', 'Failed to process notification: ' + err.message, 'error'); 
+			}
 		});
 
 		function openViewModal(button){

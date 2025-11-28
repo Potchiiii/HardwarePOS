@@ -7,8 +7,8 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once '../db.php';
 
-// Ollama API Configuration (Local)
-define('OLLAMA_API_URL', 'http://localhost:11434/api/generate'); // Default Ollama endpoint
+// Ollama API Configuration (Web-hosted ApiFreeLLM)
+define('OLLAMA_API_URL', 'https://apifreellm.com/api/chat'); // Default Ollama endpoint
 define('OLLAMA_MODEL', 'tinyllama'); // Your local model
 
 // Get date range
@@ -111,7 +111,7 @@ function getSalesDataForAI($pdo, $from_date, $to_date) {
     return $data;
 }
 
-// Call Ollama API for analysis (Local)
+// Call Ollama API for analysis (Web-hosted ApiFreeLLM)
 function getAIAnalysis($sales_data, $user_question = null) {
     $data_summary = "You are an expert business analyst. Analyze this sales data. All currency amounts are in Philippine peso (PHP, ₱).\n\n";
     $data_summary .= "Period: " . $sales_data['summary']['first_sale'] . " to " . $sales_data['summary']['last_sale'] . "\n";
@@ -146,13 +146,7 @@ function getAIAnalysis($sales_data, $user_question = null) {
     }
     
     $request_data = [
-        'model' => OLLAMA_MODEL,
-        'prompt' => $full_prompt,
-        'stream' => false,
-        'options' => [
-            'temperature' => 0.5,
-            'num_predict' => 512,
-        ]
+        'message' => $full_prompt
     ];
     
     $ch = curl_init(OLLAMA_API_URL);
@@ -161,7 +155,8 @@ function getAIAnalysis($sales_data, $user_question = null) {
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($request_data));
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Content-Type: application/json',
-        'Accept: application/json'
+        'Accept: application/json',
+        'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     ]);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5); // Fail fast if Ollama isn't reachable
     curl_setopt($ch, CURLOPT_TIMEOUT, 90); // 90 second timeout for AI analysis
@@ -172,14 +167,26 @@ function getAIAnalysis($sales_data, $user_question = null) {
     curl_close($ch);
     
     if ($curl_error) {
-        return "Error: Connection failed - " . $curl_error . "\n\nMake sure Ollama is running (ollama serve) and the model is installed (ollama pull " . OLLAMA_MODEL . ")";
+        return "Error: Connection failed - " . $curl_error . "\n\nMake sure the API is reachable at " . OLLAMA_API_URL;
     }
     
     if ($http_code !== 200) {
-        return "Error: API returned HTTP code $http_code. Make sure Ollama is running on http://localhost:11434";
+        return "Error: API returned HTTP code $http_code. Make sure the API is reachable at " . OLLAMA_API_URL;
     }
     
     $result = json_decode($response, true);
+    
+    if (isset($result['status']) && $result['status'] === 'success' && isset($result['response'])) {
+        return $result['response'];
+    }
+    
+    if (isset($result['status']) && $result['status'] === 'error') {
+        $err = $result['error'] ?? 'Unknown error';
+        if (stripos($err, 'rate limit') !== false) {
+            return "Error: Rate limit hit. Please wait ~5 seconds and try again.";
+        }
+        return "Error: " . $err;
+    }
     
     if (isset($result['response'])) {
         return $result['response'];
@@ -257,7 +264,7 @@ $top_products_stmt = $pdo->prepare($top_products_query);
 $top_products_stmt->execute([$from_date, $to_date . ' 23:59:59']);
 $top_products = $top_products_stmt->fetchAll();
 
-$recent_transactions_query = "SELECT s.sale_date, s.id as sale_id, s.total_amount, u.username as cashier, GROUP_CONCAT(CONCAT(i.brand, ' - ', i.name, ' (', si.quantity, ')') SEPARATOR ', ') as items FROM inventory_logs s JOIN users u ON s.user_id = u.id LEFT JOIN inventory_log_items si ON s.id = si.sale_id LEFT JOIN inventory i ON si.inventory_id = i.id WHERE s.sale_date BETWEEN ? AND ? GROUP BY s.id, s.sale_date, s.total_amount, u.username ORDER BY s.sale_date DESC LIMIT 10";
+$recent_transactions_query = "SELECT s.sale_date, s.id as sale_id, s.total_amount, u.username as cashier, GROUP_CONCAT(CONCAT(i.brand, ' - ', i.name, ' (', si.quantity, ')') SEPARATOR ', ') as items FROM inventory_logs s JOIN users u ON s.user_id = u.id LEFT JOIN inventory_log_items si ON s.id = si.sale_id LEFT JOIN inventory i ON si.inventory_id = i.id WHERE s.sale_date BETWEEN ? AND ? AND s.total_amount > 0 GROUP BY s.id, s.sale_date, s.total_amount, u.username ORDER BY s.sale_date DESC LIMIT 10";
 $recent_transactions_stmt = $pdo->prepare($recent_transactions_query);
 $recent_transactions_stmt->execute([$from_date, $to_date . ' 23:59:59']);
 $recent_transactions = $recent_transactions_stmt->fetchAll();
@@ -266,7 +273,7 @@ $recent_transactions = $recent_transactions_stmt->fetchAll();
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Sales Report & AI Analytics (Ollama Local)</title>
+  <title>Sales Report & AI Analytics (Web API)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -363,7 +370,7 @@ $recent_transactions = $recent_transactions_stmt->fetchAll();
       font-size: 28px;
     }
     .ai-analyst-section h3::after {
-      content: "LOCAL";
+      content: "WEB";
       font-size: 11px;
       background: rgba(255,255,255,0.3);
       padding: 4px 8px;
@@ -809,9 +816,9 @@ $recent_transactions = $recent_transactions_stmt->fetchAll();
     } catch (error) {
       console.error('Error:', error);
       if (error.name === 'AbortError') {
-        aiResponseDiv.innerHTML = '<p style="color:#e74c3c;">Error: The AI request timed out after 90 seconds.</p><p style="font-size:12px;color:#95a5a6;">Make sure Ollama is running and the model is optimized for your hardware.</p>';
+        aiResponseDiv.innerHTML = '<p style="color:#e74c3c;">Error: The AI request timed out after 90 seconds.</p><p style="font-size:12px;color:#95a5a6;">Ensure internet connectivity. If using the free API, wait ~5 seconds between requests due to rate limits.</p>';
       } else {
-        aiResponseDiv.innerHTML = '<p style="color:#e74c3c;">Error: ' + error.message + '</p><p style="font-size:12px;color:#95a5a6;">Check console for details. Make sure Ollama is running on http://localhost:11434</p>';
+        aiResponseDiv.innerHTML = '<p style="color:#e74c3c;">Error: ' + error.message + '</p><p style="font-size:12px;color:#95a5a6;">Check console for details. The web AI API may be rate-limiting or temporarily unavailable.</p>';
       }
     }
 
